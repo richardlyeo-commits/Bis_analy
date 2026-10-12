@@ -132,8 +132,10 @@ table.gridtbl{border-collapse:separate;border-spacing:0;width:max-content;min-wi
       <input id="file" type="file" accept=".csv" hidden>
     </label>
     <div class="row">
-      <label for="namefile">② 운전자 이름표(엑셀, 선택)</label>
-      <input id="namefile" type="file" accept=".xlsx,.xls">
+      <label for="namefile">② 운전자 이름표(엑셀 또는 ERP txt, 선택)</label>
+      <input id="namefile" type="file" accept=".xlsx,.xls,.txt,.csv">
+      <label for="deptfilter" class="note" style="margin:0">ERP txt일 때 부서에 포함된 글자</label>
+      <input id="deptfilter" type="text" value="월암" size="8" title="ERP txt를 올릴 때, 부서 칸에 이 글자가 들어간 기사만 이름표로 만듭니다. 비우면 전체">
       <span id="namestate" class="note" style="margin:0"></span>
       <button id="nameclear" class="ghost" type="button" hidden>저장된 이름표 지우기</button>
       <button id="namelock" class="ghost" type="button" hidden>이름표 암호 파일 만들기</button>
@@ -181,7 +183,9 @@ table.gridtbl{border-collapse:separate;border-spacing:0;width:max-content;min-wi
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script>
 // =====================================================================
-// 운행기록 점검기 (사내규정판)   버전: v20261012-09   ← 날짜-일련번호
+// 운행기록 점검기 (사내규정판)   버전: v20261012-11   ← 날짜-일련번호
+// [v20261012-11 변경] 이름표를 회사 ERP txt(세미콜론 구분)로 바로 올릴 수 있음. 운전사ID·이름·부서만 읽고 주민번호 등은 읽지 않음.
+// [v20261012-10 변경] 5건 운행 기사가 여럿인 날(87번)에 오후 기사가 오전으로 잘못 들어가 '기록 없음' 회색 열이 생기던 문제 수정. 여러 명이 같이 하는 건수는 정상으로 봄.
 // [v20261012-09 변경] 이름표를 암호로 잠가(names.enc.json) 웹에 올리고, 웹에서 암호로 여는 기능 추가.
 // [v20261012-08 변경] 엑셀 저장에 날짜별 '상세' 시트(회차 묶음 표)와 '일람' 시트 추가. 색·시간 서식 포함(ExcelJS 사용).
 // [v20261012-07 변경] 한 기사 건수가 '보통'보다 많으면(다른 기사 운행이 그 ID로 찍힌 경우, 예: 6일 이복현 → 함길선 ID) 시각으로 묶음을 다시 정하고 사유를 표시.
@@ -208,7 +212,7 @@ table.gridtbl{border-collapse:separate;border-spacing:0;width:max-content;min-wi
 //  5) 예외: 내가 '밀착'인데 내 앞차가 '지연' 선정이면, 또는 내가 '지연'인데 앞차가
 //     '밀착' 선정이면 선정에서 빼줍니다(예외 인정).
 // =====================================================================
-var VERSION = 'v20261012-09';
+var VERSION = 'v20261012-11';
 
 // ---------- [기준값] 여기 숫자만 바꾸면 점검이 더 엄격/느슨해집니다 ----------
 var 지연_배수 = 1.7;          // 기준의 1.7배 초과면 '지연 정류장'
@@ -341,6 +345,19 @@ function 최다(map) {
   return best == null ? null : +best;
 }
 
+// [v20261012-10] '정상 건수' 구하기: 기사별 그날 운행 건수(counts: {기사ID: 건수}) 중,
+// 가장 많은 기사가 하는 건수(표준)와, 기사 수의 15% 이상(최소 2명)이 같이 하는 건수는 '정상'으로 봅니다.
+// 예) 87번: 대부분 4건, 2명은 5건 → 4건·5건 모두 정상 (5건 기사를 오류로 보지 않습니다)
+//     5번 6일: 대부분 2건, 함길선 1명만 4건 → 4건은 정상이 아님 (다른 기사 운행이 섞였을 수 있음)
+function 정상건수구하기(counts) {
+  var 기사들 = Object.keys(counts).filter(function (id) { return id !== ''; });
+  var 빈도 = {}; 기사들.forEach(function (id) { 빈도[counts[id]] = (빈도[counts[id]] || 0) + 1; });
+  var 표준 = null, 최빈 = -1; Object.keys(빈도).forEach(function (m) { if (빈도[m] > 최빈) { 최빈 = 빈도[m]; 표준 = +m; } });
+  var 최소명 = Math.max(2, Math.ceil(기사들.length * 0.15)), 정상 = {};
+  Object.keys(빈도).forEach(function (m) { if (빈도[m] >= 최소명 || +m === 표준) 정상[m] = true; });
+  return { 표준: 표준, 정상: 정상 };
+}
+
 // 파일 내용 전체를 읽어 결과를 돌려줍니다. (하루치든 여러 날이든 같은 방식)
 function 점검(text, 방식) {
   방식 = 방식 || 묶음방식_기본;           // '배차일보' 또는 'BIS'
@@ -384,6 +401,8 @@ function 점검(text, 방식) {
       var 빠짐 = [];   // BIS에 기록이 없는 운행 자리: {사원, 번호, 이름}
       var 빈도 = {}; Object.keys(사원별).forEach(function (id) { if (id !== '') 빈도[사원별[id].length] = (빈도[사원별[id].length] || 0) + 1; });
       var 표준 = null, 최빈수 = -1; Object.keys(빈도).forEach(function (m) { if (빈도[m] > 최빈수) { 최빈수 = 빈도[m]; 표준 = +m; } });
+      var 건수맵 = {}; Object.keys(사원별).forEach(function (id) { 건수맵[id] = 사원별[id].length; });
+      var 정상 = 정상건수구하기(건수맵);
       var 완전 = Object.keys(사원별).filter(function (id) { return id !== '' && 사원별[id].length === 표준; });
       if (표준 != null && 완전.length >= 3) {          // 기준으로 삼을 기사가 3명은 있어야 믿을 수 있습니다
         var 슬롯시각 = {};
@@ -391,7 +410,7 @@ function 점검(text, 방식) {
         var 슬롯 = Object.keys(슬롯시각).map(function (b) { return { 번호: +b, 중앙: 중앙값(슬롯시각[b]) }; });
         Object.keys(사원별).forEach(function (id) {
           var 건 = 사원별[id].length;
-          if (id !== '' && 건 === 표준) return;           // 건수가 딱 맞는 기사는 그대로 둡니다 ([v07] 많은 기사도 아래에서 다시 넣습니다)
+          if (id !== '' && 정상.정상[건]) return;           // [v10] 정상 건수(표준, 또는 여러 명이 같이 하는 건수)인 기사는 그대로 둡니다
           var 쓴 = {};
           사원별[id].forEach(function (k) {              // 시각순으로 하나씩 가장 가까운 묶음에 넣습니다
             var best = null, bd = 1e12;
@@ -536,11 +555,12 @@ function 점검(text, 방식) {
     var 기사별수 = {}; trips.forEach(function (t) { 기사별수[t.사원] = (기사별수[t.사원] || 0) + 1; });
     var 수빈도 = {}; Object.keys(기사별수).forEach(function (id) { if (id !== '') 수빈도[기사별수[id]] = (수빈도[기사별수[id]] || 0) + 1; });
     var 보통 = null, 최빈 = -1; Object.keys(수빈도).forEach(function (m) { if (수빈도[m] > 최빈) { 최빈 = 수빈도[m]; 보통 = +m; } });   // 가장 많은 기사가 하는 운행 건수
+    var 정상일람 = 정상건수구하기(기사별수);   // [v10] 여러 명이 같이 하는 건수는 오류로 표시하지 않습니다
     var 검지최대 = Math.max.apply(null, trips.map(function (t) { return t.검지수 || 0; }));
     var 일람 = trips.map(function (t, k) {
       var 확인 = [];
       if (t.사원 === '') 확인.push('기사 ID 없음');
-      else if (보통 != null && 기사별수[t.사원] !== 보통) 확인.push('이 기사 ' + 기사별수[t.사원] + '건 (보통 ' + 보통 + '건)' + (기사별수[t.사원] > 보통 ? ' → 다른 기사 운행이 이 ID로 찍혔을 수 있음' : ''));
+      else if (보통 != null && !정상일람.정상[기사별수[t.사원]]) 확인.push('이 기사 ' + 기사별수[t.사원] + '건 (보통 ' + 보통 + '건)' + (기사별수[t.사원] > 보통 ? ' → 다른 기사 운행이 이 ID로 찍혔을 수 있음' : ''));
       if (검지최대 > 0 && t.검지수 < 검지최대 * 0.95) 확인.push('검지 ' + t.검지수 + '곳(단말기 의심)');
       if (묶음[k].추정) 확인.push('묶음은 다른 기사들 시각을 보고 추정');
       return { 시작: 시작[k], 종료: 종료[k], 차량: t.차량, 사원: t.사원, BIS회차: t.회차, 묶음이름: 묶음[k].이름, 검지수: t.검지수, 확인: 확인 };
@@ -1117,8 +1137,57 @@ function 파일읽기(f) {
   fr.readAsArrayBuffer(f);
 }
 
+// ---------- [v20261012-11] 회사 ERP에서 받은 txt 파일로 이름표 만들기 ----------
+// 쉬운 설명: ERP txt는 칸 사이를 세미콜론(;)으로 나눈 글자 파일입니다.
+//   첫 줄:  NO;사번;이름;주민번호;입사일자;상태;입사구분;직종;부서;직위;근무노선;운전사ID;
+// 이 함수는 그중 '운전사ID'와 '이름'(그리고 거르는 데 쓰는 '부서')만 읽습니다.
+// ※ 주민번호 칸은 읽지도, 저장하지도 않습니다. (아래 코드 어디에서도 쓰지 않습니다)
+function ERP글자에서이름표만들기(text, 부서글자) {
+  var 줄들 = text.replace(/\r/g, '').split('\n');
+  var h = -1, 칸이름 = [];
+  for (var i = 0; i < 줄들.length && h < 0; i++) {   // '운전사ID'와 '이름'이 함께 있는 줄 = 제목 줄
+    var a = 줄들[i].split(';').map(function (x) { return x.trim(); });
+    if (a.indexOf('운전사ID') >= 0 && a.indexOf('이름') >= 0) { h = i; 칸이름 = a; }
+  }
+  if (h < 0) throw new Error("제목 줄에서 '운전사ID'와 '이름' 칸을 찾지 못했습니다. (칸 사이는 세미콜론 ; 이어야 합니다)");
+  var ci = 칸이름.indexOf('운전사ID'), ni = 칸이름.indexOf('이름'), di = 칸이름.indexOf('부서');
+  var 맵 = {}, 부서들 = {}, 전체 = 0;
+  for (var j = h + 1; j < 줄들.length; j++) {
+    if (!줄들[j].trim()) continue;
+    var c = 줄들[j].split(';').map(function (x) { return x.trim(); });
+    var id = c[ci] || '', nm = c[ni] || '', 부서 = di >= 0 ? (c[di] || '') : '';
+    if (!id || !nm) continue;                       // 운전사ID나 이름이 비어 있는 사람(운전직이 아닌 직원 등)은 건너뜁니다
+    전체++; 부서들[부서 || '(부서 없음)'] = (부서들[부서 || '(부서 없음)'] || 0) + 1;
+    if (부서글자 && di >= 0 && 부서.indexOf(부서글자) < 0) continue;   // 부서에 입력한 글자(예: 월암)가 없으면 건너뜁니다
+    맵[여섯자리(id)] = nm;                           // 앞자리 0 채우기 (엑셀과 같은 규칙)
+  }
+  return { 맵: 맵, 부서들: 부서들, 전체: 전체 };
+}
+function 이름표텍스트읽기(f) {
+  var fr = new FileReader();
+  fr.onload = function () {
+    try {
+      var buf = new Uint8Array(fr.result), text;
+      try { text = new TextDecoder('utf-8', { fatal: true }).decode(buf); }
+      catch (e) { text = new TextDecoder('euc-kr').decode(buf); }   // 한글 윈도우 txt는 보통 euc-kr(cp949)
+      var 부서글자 = $('deptfilter').value.trim();
+      var r = ERP글자에서이름표만들기(text, 부서글자), n = Object.keys(r.맵).length;
+      if (!n) {
+        var 목록 = Object.keys(r.부서들).slice(0, 8).join(', ');
+        throw new Error('부서에 「' + 부서글자 + '」이(가) 들어간 기사를 찾지 못했습니다. 파일에 있는 부서: ' + (목록 || '없음') + ' — 부서 칸의 글자를 고치거나 비워 보세요.');
+      }
+      이름맵 = r.맵;
+      var 저장됨 = 저장쓰기(이름표_열쇠, { 맵: 이름맵, 날짜: new Date().toISOString().slice(0, 10), 파일: f.name });   // 사번(운전사ID)과 이름만 저장
+      $('msg').textContent = 'ERP 파일에서 ' + (부서글자 ? '「' + 부서글자 + '」 부서 ' : '') + n + '명의 이름표를 만들었습니다.' + (저장됨 ? ' 이 컴퓨터에 저장했습니다.' : '');
+      이름표상태표시(); 실행();
+    } catch (e) { $('msg').textContent = '이름표를 읽지 못했습니다: ' + e.message; }
+  };
+  fr.readAsArrayBuffer(f);
+}
+
 // 이름표 엑셀을 읽습니다. '운전사ID'와 '이름'이라는 제목 칸을 찾아 ID → 이름 목록을 만듭니다.
 function 이름표읽기(f) {
+  if (/\.(txt|csv)$/i.test(f.name)) { 이름표텍스트읽기(f); return; }   // [v11] ERP txt는 따로 읽습니다
   if (!window.XLSX) { $('msg').textContent = '엑셀 도구를 불러오지 못했습니다. 인터넷 연결을 확인하세요.'; return; }
   var fr = new FileReader();
   fr.onload = function () {
