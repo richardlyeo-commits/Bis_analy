@@ -1,8 +1,10 @@
 <!doctype html>
+<!-- ★ 프로그램 버전: v20261012-15  (파일 이름의 번호와 같습니다) -->
 <html lang="ko">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="program-version" content="v20261012-15">
 <title>운행기록 점검기 (사내규정판)</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap">
 <style>
@@ -193,7 +195,8 @@ button.small{padding:5px 12px;font-size:.9rem}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script>
 // =====================================================================
-// 운행기록 점검기 (사내규정판)   버전: v20261012-14   ← 날짜-일련번호
+// 운행기록 점검기 (사내규정판)   버전: v20261012-15   ← 날짜-일련번호
+// [v20261012-15 변경] 버전을 파일 맨 윗줄 주석과 meta에도 표시. (버전을 올릴 때는 '프로그램 버전' 주석, meta, VERSION, 이 줄 4곳을 같이 고칩니다)
 // [v20261012-14 변경] 엑셀에서 다시 저장한 CSV도 읽도록: 칸 구분(; 탭), 시각 모양('5:03', 오전/오후, 소수), 날짜 모양, 잘린 줄 처리. 못 읽을 때 원인 안내 추가.
 // [v20261012-13 변경] 첫 화면 정리: 올리기 전에는 빈 결과 칸이 안 보이게(hidden 수정), 이름표 줄 배치 정돈, 작은 단추.
 // [v20261012-12 변경] 버전을 화면 맨 위(제목 옆)와 브라우저 탭 이름에 항상 표시.
@@ -225,7 +228,7 @@ button.small{padding:5px 12px;font-size:.9rem}
 //  5) 예외: 내가 '밀착'인데 내 앞차가 '지연' 선정이면, 또는 내가 '지연'인데 앞차가
 //     '밀착' 선정이면 선정에서 빼줍니다(예외 인정).
 // =====================================================================
-var VERSION = 'v20261012-14';
+var VERSION = 'v20261012-15';
 
 // ---------- [기준값] 여기 숫자만 바꾸면 점검이 더 엄격/느슨해집니다 ----------
 var 지연_배수 = 1.7;          // 기준의 1.7배 초과면 '지연 정류장'
