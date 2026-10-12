@@ -121,7 +121,7 @@ table.gridtbl{border-collapse:separate;border-spacing:0;width:max-content;min-wi
 <body>
 <div class="wrap">
   <header>
-    <h1>운행기록 점검기 <small style="font-size:.9rem;color:var(--muted)">사내규정판</small></h1>
+    <h1>운행기록 점검기 <small style="font-size:.9rem;color:var(--muted)">사내규정판</small> <small id="vertop" style="font-size:.8rem;color:var(--muted);font-weight:400"></small></h1>
     <p class="sub">BIS 운행기록표 CSV를 올리면 사내 「지연/밀착 승무원 선정기준」에 따라 선정 여부를 계산합니다. 파일은 이 컴퓨터 안에서만 처리되고 밖으로 나가지 않습니다.</p>
   </header>
 
@@ -183,7 +183,8 @@ table.gridtbl{border-collapse:separate;border-spacing:0;width:max-content;min-wi
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script>
 // =====================================================================
-// 운행기록 점검기 (사내규정판)   버전: v20261012-11   ← 날짜-일련번호
+// 운행기록 점검기 (사내규정판)   버전: v20261012-12   ← 날짜-일련번호
+// [v20261012-12 변경] 버전을 화면 맨 위(제목 옆)와 브라우저 탭 이름에 항상 표시.
 // [v20261012-11 변경] 이름표를 회사 ERP txt(세미콜론 구분)로 바로 올릴 수 있음. 운전사ID·이름·부서만 읽고 주민번호 등은 읽지 않음.
 // [v20261012-10 변경] 5건 운행 기사가 여럿인 날(87번)에 오후 기사가 오전으로 잘못 들어가 '기록 없음' 회색 열이 생기던 문제 수정. 여러 명이 같이 하는 건수는 정상으로 봄.
 // [v20261012-09 변경] 이름표를 암호로 잠가(names.enc.json) 웹에 올리고, 웹에서 암호로 여는 기능 추가.
@@ -212,7 +213,7 @@ table.gridtbl{border-collapse:separate;border-spacing:0;width:max-content;min-wi
 //  5) 예외: 내가 '밀착'인데 내 앞차가 '지연' 선정이면, 또는 내가 '지연'인데 앞차가
 //     '밀착' 선정이면 선정에서 빼줍니다(예외 인정).
 // =====================================================================
-var VERSION = 'v20261012-11';
+var VERSION = 'v20261012-12';
 
 // ---------- [기준값] 여기 숫자만 바꾸면 점검이 더 엄격/느슨해집니다 ----------
 var 지연_배수 = 1.7;          // 기준의 1.7배 초과면 '지연 정류장'
@@ -1484,6 +1485,11 @@ $('xlsx').addEventListener('click', function () {
     setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
   });
 });
+
+// [v20261012-12] 버전을 화면 맨 위 제목 옆과 브라우저 탭 이름에 바로 보여 줍니다. (파일을 열자마자 보입니다)
+$('vertop').textContent = VERSION;
+document.title = '운행기록 점검기 ' + VERSION;
+if ($('ver')) $('ver').textContent = VERSION;
 </script>
 </body>
 </html>
