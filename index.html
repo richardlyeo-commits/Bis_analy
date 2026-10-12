@@ -108,6 +108,14 @@ table.gridtbl{border-collapse:separate;border-spacing:0;width:max-content;min-wi
 .gridtbl td.edge .g{font-weight:400;font-style:italic}   /* 앞 묶음의 차와 잰 간격(끝에 *): 최소·최대에서는 제외 */
 .gridtbl td.mm{min-width:150px;font-size:.82rem}
 .gridtbl th.flag{color:var(--bad-fg);background:var(--bad-bg)}
+
+/* [v20261012-13] 화면 정리 */
+[hidden]{display:none !important}   /* hidden이 표시 설정(flex 등)에 밀려 안 숨겨지던 문제를 막습니다 */
+#out{width:100%}                    /* 결과 영역이 위 칸과 같은 너비로 펼쳐지도록 */
+.row.opt{margin-top:6px}
+.row.opt .note{white-space:nowrap}
+button.small{padding:5px 12px;font-size:.9rem}
+.row input[type=file]{max-width:100%}
 #printArea{display:none}
 @media print{
   body{background:#fff;padding:0}
@@ -132,13 +140,15 @@ table.gridtbl{border-collapse:separate;border-spacing:0;width:max-content;min-wi
       <input id="file" type="file" accept=".csv" hidden>
     </label>
     <div class="row">
-      <label for="namefile">② 운전자 이름표(엑셀 또는 ERP txt, 선택)</label>
+      <label for="namefile">② 운전자 이름표</label>
       <input id="namefile" type="file" accept=".xlsx,.xls,.txt,.csv">
-      <label for="deptfilter" class="note" style="margin:0">ERP txt일 때 부서에 포함된 글자</label>
-      <input id="deptfilter" type="text" value="월암" size="8" title="ERP txt를 올릴 때, 부서 칸에 이 글자가 들어간 기사만 이름표로 만듭니다. 비우면 전체">
       <span id="namestate" class="note" style="margin:0"></span>
-      <button id="nameclear" class="ghost" type="button" hidden>저장된 이름표 지우기</button>
-      <button id="namelock" class="ghost" type="button" hidden>이름표 암호 파일 만들기</button>
+    </div>
+    <div class="row opt">
+      <label for="deptfilter" class="note" style="margin:0;font-weight:400" title="회사 ERP txt를 올릴 때, 부서 칸에 이 글자가 들어간 기사만 이름표로 만듭니다. 비우면 전체">ERP txt 올릴 때 부서 글자</label>
+      <input id="deptfilter" type="text" value="월암" size="6" style="min-width:0;width:7em">
+      <button id="nameclear" class="ghost small" type="button" hidden>저장된 이름표 지우기</button>
+      <button id="namelock" class="ghost small" type="button" hidden>이름표 암호 파일 만들기</button>
     </div>
     <div class="row" id="unlockrow" hidden>
       <label for="unlockpw">🔒 웹에 올려 둔 이름표가 있습니다. 암호 →</label>
@@ -183,7 +193,8 @@ table.gridtbl{border-collapse:separate;border-spacing:0;width:max-content;min-wi
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script>
 // =====================================================================
-// 운행기록 점검기 (사내규정판)   버전: v20261012-12   ← 날짜-일련번호
+// 운행기록 점검기 (사내규정판)   버전: v20261012-13   ← 날짜-일련번호
+// [v20261012-13 변경] 첫 화면 정리: 올리기 전에는 빈 결과 칸이 안 보이게(hidden 수정), 이름표 줄 배치 정돈, 작은 단추.
 // [v20261012-12 변경] 버전을 화면 맨 위(제목 옆)와 브라우저 탭 이름에 항상 표시.
 // [v20261012-11 변경] 이름표를 회사 ERP txt(세미콜론 구분)로 바로 올릴 수 있음. 운전사ID·이름·부서만 읽고 주민번호 등은 읽지 않음.
 // [v20261012-10 변경] 5건 운행 기사가 여럿인 날(87번)에 오후 기사가 오전으로 잘못 들어가 '기록 없음' 회색 열이 생기던 문제 수정. 여러 명이 같이 하는 건수는 정상으로 봄.
@@ -213,7 +224,7 @@ table.gridtbl{border-collapse:separate;border-spacing:0;width:max-content;min-wi
 //  5) 예외: 내가 '밀착'인데 내 앞차가 '지연' 선정이면, 또는 내가 '지연'인데 앞차가
 //     '밀착' 선정이면 선정에서 빼줍니다(예외 인정).
 // =====================================================================
-var VERSION = 'v20261012-12';
+var VERSION = 'v20261012-13';
 
 // ---------- [기준값] 여기 숫자만 바꾸면 점검이 더 엄격/느슨해집니다 ----------
 var 지연_배수 = 1.7;          // 기준의 1.7배 초과면 '지연 정류장'
