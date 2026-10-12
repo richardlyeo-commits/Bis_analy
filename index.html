@@ -136,6 +136,12 @@ table.gridtbl{border-collapse:separate;border-spacing:0;width:max-content;min-wi
       <input id="namefile" type="file" accept=".xlsx,.xls">
       <span id="namestate" class="note" style="margin:0"></span>
       <button id="nameclear" class="ghost" type="button" hidden>저장된 이름표 지우기</button>
+      <button id="namelock" class="ghost" type="button" hidden>이름표 암호 파일 만들기</button>
+    </div>
+    <div class="row" id="unlockrow" hidden>
+      <label for="unlockpw">🔒 웹에 올려 둔 이름표가 있습니다. 암호 →</label>
+      <input id="unlockpw" type="password" autocomplete="off" placeholder="암호 입력">
+      <button id="unlockbtn" class="ghost" type="button">이름표 열기</button>
     </div>
     <div class="row">
       <label for="watch">③ 이 노선에서 지켜볼 기사 ID(쉼표로 구분)</label>
@@ -175,7 +181,8 @@ table.gridtbl{border-collapse:separate;border-spacing:0;width:max-content;min-wi
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script>
 // =====================================================================
-// 운행기록 점검기 (사내규정판)   버전: v20261012-08   ← 날짜-일련번호
+// 운행기록 점검기 (사내규정판)   버전: v20261012-09   ← 날짜-일련번호
+// [v20261012-09 변경] 이름표를 암호로 잠가(names.enc.json) 웹에 올리고, 웹에서 암호로 여는 기능 추가.
 // [v20261012-08 변경] 엑셀 저장에 날짜별 '상세' 시트(회차 묶음 표)와 '일람' 시트 추가. 색·시간 서식 포함(ExcelJS 사용).
 // [v20261012-07 변경] 한 기사 건수가 '보통'보다 많으면(다른 기사 운행이 그 ID로 찍힌 경우, 예: 6일 이복현 → 함길선 ID) 시각으로 묶음을 다시 정하고 사유를 표시.
 // [v20261012-06 변경] '그날 전체 운행 일람' 추가 (회차 묶음 표 아래, 접었다 펴는 표).
@@ -201,7 +208,7 @@ table.gridtbl{border-collapse:separate;border-spacing:0;width:max-content;min-wi
 //  5) 예외: 내가 '밀착'인데 내 앞차가 '지연' 선정이면, 또는 내가 '지연'인데 앞차가
 //     '밀착' 선정이면 선정에서 빼줍니다(예외 인정).
 // =====================================================================
-var VERSION = 'v20261012-08';
+var VERSION = 'v20261012-09';
 
 // ---------- [기준값] 여기 숫자만 바꾸면 점검이 더 엄격/느슨해집니다 ----------
 var 지연_배수 = 1.7;          // 기준의 1.7배 초과면 '지연 정류장'
@@ -494,7 +501,7 @@ function 점검(text, 방식) {
         결과: 결과, 저녁: (출발 != null && 출발 / 3600 >= 저녁_시작_시 && 출발 < 86400) ? 1 : 0,
         검지수: t.검지수, _비율: Math.max(r.지연, r.밀착) / 문턱, _선정: r.선정 && !예외 ? r.선정 : '',
         _밀착비: r.밀착 / 문턱, _지연비: r.지연 / 문턱, _정류장수: 정류장수,
-        // 위반 정류장 목록: 종류, 순번, 정류장 이름, 내 통과 시각, 앞차 통과 시각, 앞차와 간격(분), 기준분, 앞차 차량·기사
+        // 위반 정류장 목록: 종류, 순번, 정류장 이름, 내 통과 시각, 앞차 통과 시각, 앞차와 간격(분), 기준선, 앞차 차량·기사
         _상세: r.상세.map(function (d) {
           return { 종류: d.종류, 순번: d.순번, 정류장: d.정류장, 통과: 시각초(d.시각), 앞통과: 시각초(d.앞시각),
                    간격: 소수1(d.간격), 기준: 소수1(d.기준),
@@ -786,6 +793,7 @@ function 이름표상태표시() {
   var n = Object.keys(이름맵).length, 저장 = 저장읽기(이름표_열쇠);
   $('namestate').textContent = n ? ('저장된 이름표 ' + n + '명' + (저장 && 저장.날짜 ? ' (' + 저장.날짜 + ' 저장)' : '') + ' · 명단이 바뀌었을 때만 다시 올리세요') : '저장된 이름표 없음';
   $('nameclear').hidden = !n;
+  $('namelock').hidden = !n;   // [v09] 이름표가 있을 때만 '암호 파일 만들기' 표시
 }
 function 저장된것불러오기() {
   var 이름표 = 저장읽기(이름표_열쇠);
@@ -879,9 +887,9 @@ function 상세보기(id, 종류, 키, 스크롤안함) {
     (키 ? '<button class="ghost" type="button" data-detail="' + id + '|' + 종류 + '|">이 기사 전체 회차 보기</button> ' : '') +
     '<button class="ghost" type="button" id="detailcopy">표 복사</button> <button class="ghost" type="button" id="detailclose">닫기</button></span></div>';
   $('detailpanel').innerHTML = 머리 +
-    '<p class="note">앞차와 간격(분)이 기준분보다 작을수록 바짝 붙은 것입니다. 앞차가 늦어서 뒤차가 붙을 수도 있으니 앞차 차량·기사도 함께 보세요. 이 화면은 소장 분석용이며, 앞차 기사 이름은 상담 카드에 넣지 않습니다.</p>' +
+    '<p class="note">앞차와 간격(분)이 기준선보다 작을수록 바짝 붙은 것입니다. 앞차가 늦어서 뒤차가 붙을 수도 있으니 앞차 차량·기사도 함께 보세요. 이 화면은 소장 분석용이며, 앞차 기사 이름은 상담 카드에 넣지 않습니다.</p>' +
     (요약.length ? '<ul class="easy">' + 요약.join('') + '</ul>' : '<p>' + 종류 + ' 정류장이 없습니다.</p>') +
-    (줄.length ? '<div class="scroll" style="max-height:60vh"><table id="tdetail"><tr><th>날짜</th><th>요일</th><th>출발</th><th>회차</th><th>순번</th><th>정류장</th><th>내 통과</th><th>앞차 통과</th><th>앞차와 간격(분)</th><th>기준분</th><th>앞차 차량</th><th>앞차 기사</th></tr>' + 줄.join('') + '</table></div>' : '');
+    (줄.length ? '<div class="scroll" style="max-height:60vh"><table id="tdetail"><tr><th>날짜</th><th>요일</th><th>출발</th><th>회차</th><th>순번</th><th>정류장</th><th>내 통과</th><th>앞차 통과</th><th>앞차와 간격(분)</th><th>기준선</th><th>앞차 차량</th><th>앞차 기사</th></tr>' + 줄.join('') + '</table></div>' : '');
   $('detailpanel').hidden = false;
   if (!스크롤안함) $('detailpanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
@@ -1144,7 +1152,71 @@ $('namefile').addEventListener('change', function (e) { if (e.target.files[0]) �
 var 감시지연 = null;
 $('watch').addEventListener('change', function () { 노선감시저장(); clearTimeout(감시지연); 감시지연 = setTimeout(function () { 실행(); }, 350); });   // 입력칸에서 빠져나오며 바로 누른 클릭이 사라지지 않도록 0.35초 뒤에 다시 그립니다
 $('nameclear').addEventListener('click', function () { 이름맵 = {}; 저장지우기(이름표_열쇠); 이름표상태표시(); $('msg').textContent = '저장된 이름표를 지웠습니다.'; 실행(); });
+// ---------- [v20261012-09] 이름표를 암호로 잠가 웹에 함께 올리기 ----------
+// 쉬운 설명: 기사 이름·사번은 개인정보라서 인터넷(GitHub Pages)에 그냥 올리면 누구나 볼 수 있습니다.
+// 그래서 ① 내 컴퓨터에서 이름표를 '암호로 잠근 파일(names.enc.json)'로 만들고, ② 그 파일만 웹에 올립니다.
+// ③ 웹에서 열 때 암호를 한 번 입력하면 이 브라우저 안에서만 풀립니다. (암호는 어디에도 저장·전송되지 않습니다)
+// 방식: PBKDF2(암호 → 열쇠, 20만 번 섞기) + AES-GCM(잠금). 브라우저 기본 기능(WebCrypto)이라 따로 받을 도구가 없습니다.
+var 암호파일이름 = 'names.enc.json', 섞기횟수 = 200000;
+function 글자to바이트(s) { return new TextEncoder().encode(s); }
+function 바이트to64(b) { var s = ''; new Uint8Array(b).forEach(function (x) { s += String.fromCharCode(x); }); return btoa(s); }
+function 판to바이트(t) { var s = atob(t), u = new Uint8Array(s.length); for (var i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; }
+function 열쇠만들기(암호, salt) {   // 암호 + 소금(salt) → AES 열쇠
+  return crypto.subtle.importKey('raw', 글자to바이트(암호), 'PBKDF2', false, ['deriveKey']).then(function (base) {
+    return crypto.subtle.deriveKey({ name: 'PBKDF2', salt: salt, iterations: 섞기횟수, hash: 'SHA-256' }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+  });
+}
+function 이름표잠그기(맵, 암호) {   // 이름표 → 잠근 글자 덩어리 {v, salt, iv, data}
+  var salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12));
+  return 열쇠만들기(암호, salt).then(function (key) {
+    return crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key, 글자to바이트(JSON.stringify(맵)));
+  }).then(function (enc) { return { v: 1, salt: 바이트to64(salt), iv: 바이트to64(iv), data: 바이트to64(enc) }; });
+}
+function 이름표풀기(봉투, 암호) {   // 잠근 덩어리 → 이름표. 암호가 틀리면 오류가 납니다.
+  return 열쇠만들기(암호, 판to바이트(봉투.salt)).then(function (key) {
+    return crypto.subtle.decrypt({ name: 'AES-GCM', iv: 판to바이트(봉투.iv) }, key, 판to바이트(봉투.data));
+  }).then(function (평문) { return JSON.parse(new TextDecoder().decode(평문)); });
+}
+
+// 이름표를 올린 컴퓨터에서 쓰는 '암호 파일 만들기' 단추
+$('namelock').addEventListener('click', function () {
+  if (!Object.keys(이름맵).length) { $('msg').textContent = '먼저 이름표 엑셀을 올려 주세요.'; return; }
+  var 암호 = window.prompt('이름표를 잠글 암호를 정하세요. (12자 이상 권장. 잊으면 복구할 수 없으니 따로 적어 두세요)');
+  if (!암호) return;
+  if (암호.length < 10) { $('msg').textContent = '암호가 너무 짧습니다. 10자 이상으로 정해 주세요. (짧으면 웹에 올린 파일이 뚫릴 수 있습니다)'; return; }
+  $('msg').textContent = '잠그는 중입니다…';
+  이름표잠그기(이름맵, 암호).then(function (봉투) {
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(봉투)], { type: 'application/json' }));
+    a.download = 암호파일이름; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
+    $('msg').textContent = '「' + 암호파일이름 + '」을 만들었습니다. 이 파일을 웹(GitHub 저장소)에 index.html과 같은 곳에 올리세요.';
+  }, function (e) { $('msg').textContent = '잠그지 못했습니다: ' + e.message; });
+});
+
+// 웹에서 열었을 때: 저장된 이름표가 없고 names.enc.json이 있으면 암호 입력 칸을 보여 줍니다.
+var 봉투보관 = null;
+function 암호파일찾기() {
+  if (Object.keys(이름맵).length || !/^https?:$/.test(location.protocol) || !window.fetch) return;   // 내 컴퓨터에서 직접 연 파일(file://)에서는 찾지 않습니다
+  fetch(암호파일이름, { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+    if (j && j.salt && j.iv && j.data) { 봉투보관 = j; $('unlockrow').hidden = false; }
+  }).catch(function () {});
+}
+$('unlockbtn').addEventListener('click', function () {
+  var 암호 = $('unlockpw').value;
+  if (!봉투보관 || !암호) return;
+  $('msg').textContent = '여는 중입니다…';
+  이름표풀기(봉투보관, 암호).then(function (맵) {
+    이름맵 = 맵; $('unlockpw').value = ''; $('unlockrow').hidden = true;
+    var 저장됨 = 저장쓰기(이름표_열쇠, { 맵: 이름맵, 날짜: new Date().toISOString().slice(0, 10), 파일: 암호파일이름 });
+    $('msg').textContent = '이름표 ' + Object.keys(이름맵).length + '명을 열었습니다.' + (저장됨 ? ' 이 기기에 저장했으니 다음부터는 암호를 묻지 않습니다.' : '');
+    이름표상태표시(); 실행();
+  }, function () { $('msg').textContent = '암호가 맞지 않습니다. 다시 입력해 주세요.'; });
+});
+$('unlockpw').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('unlockbtn').click(); });
+
 저장된것불러오기();   // 화면을 열자마자 저장된 이름표와 기사 ID를 불러옵니다
+암호파일찾기();      // [v09] 웹이면 암호로 잠근 이름표 파일이 있는지 찾습니다
 카드칸연결();
 // 파란 글씨 숫자(data-detail)를 누르면 정류장 상세를, 정렬 선택을 바꾸면 기사표를 다시 정렬합니다. (화면 어디에 있든 동작하도록 문서 전체에서 받습니다)
 document.addEventListener('click', function (e) {
