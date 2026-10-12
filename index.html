@@ -1,0 +1,1348 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>운행기록 점검기 (사내규정판)</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap">
+<style>
+/* 화면 배치: 위에서 아래로  1) 파일 올리는 칸  2) 한눈에 보기  3) 요약 카드  4) 표 여러 개 */
+:root{
+  --bg:#f3f5f4; --panel:#ffffff; --fg:#17211d; --muted:#5b6862;
+  --line:#d5dcd8; --accent:#0b6b4f; --accent-fg:#ffffff;
+  --warn:#b4540a; --warn-bg:#fdecd9; --ok:#1d6b3a; --ok-bg:#dff3e6; --mid-bg:#fff6d6;
+  --font:'Noto Sans KR','Malgun Gothic','Apple SD Gothic Neo',system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#121815; --panel:#1b2420; --fg:#e8efeb; --muted:#9aa8a1;
+    --line:#2e3a34; --accent:#4fc79a; --accent-fg:#06221a;
+    --warn:#f0a15c; --warn-bg:#3b2a17; --ok:#74d39a; --ok-bg:#173324; --mid-bg:#3a3515; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#121815; --panel:#1b2420; --fg:#e8efeb; --muted:#9aa8a1;
+  --line:#2e3a34; --accent:#4fc79a; --accent-fg:#06221a;
+  --warn:#f0a15c; --warn-bg:#3b2a17; --ok:#74d39a; --ok-bg:#173324; --mid-bg:#3a3515; color-scheme:dark;
+}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:17px;line-height:1.6;
+  margin:0;padding-inline:16px;padding-block:24px}
+.wrap{max-width:1700px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+h1{font-size:1.7rem;margin:0;text-wrap:balance}
+h2{font-size:1.2rem;margin:0}
+.sub{color:var(--muted);margin:4px 0 0}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:16px;min-width:0}
+.drop{display:block;border:2px dashed var(--accent);border-radius:6px;padding:24px 16px;text-align:center;cursor:pointer}
+.drop.over{background:var(--ok-bg)}
+.drop strong{display:block;font-size:1.15rem}
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:12px}
+.row label{font-weight:700}
+input[type=text]{font-family:inherit;font-size:1rem;padding:8px 10px;border:1px solid var(--line);border-radius:6px;
+  background:var(--panel);color:var(--fg);min-width:240px}
+button{font-family:inherit;font-size:1rem;background:var(--accent);color:var(--accent-fg);border:0;
+  border-radius:6px;padding:10px 16px;cursor:pointer;font-weight:700}
+button.ghost{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+button:focus-visible,.drop:focus-visible,input:focus-visible{outline:3px solid var(--fg);outline-offset:2px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.card{border:1px solid var(--line);border-radius:6px;padding:12px}
+.card b{display:block;font-size:1.6rem;font-variant-numeric:tabular-nums}
+.card span{color:var(--muted);font-size:.9rem}
+.card.warn{background:var(--warn-bg);border-color:var(--warn)}
+.card.ok{background:var(--ok-bg);border-color:var(--ok)}
+.head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:8px}
+.scroll{overflow-x:auto;max-height:70vh}
+table{border-collapse:collapse;width:100%;font-size:.95rem;font-variant-numeric:tabular-nums}
+th,td{border-bottom:1px solid var(--line);padding:6px 10px;text-align:left;white-space:nowrap}
+th{position:sticky;top:0;background:var(--panel)}
+tr.bad td{background:var(--warn-bg)}   /* 선정된 회차: 주황색 */
+tr.mid td{background:var(--mid-bg)}    /* 선정은 아니지만 문턱의 절반 이상: 노란색 */
+.note{color:var(--muted);font-size:.9rem;margin:0 0 8px}
+#msg{font-weight:700;margin:12px 0 0}
+ul.easy{margin:8px 0 0;padding-left:1.2em}
+ul.easy li{margin:4px 0}
+
+
+button.link{background:none;border:0;color:var(--accent);text-decoration:underline;padding:0 2px;font-weight:700;font-size:inherit;cursor:pointer}
+.cmp{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin-top:8px}
+.cmp .box{border:1px solid var(--line);border-radius:6px;padding:10px 12px}
+.cmp .box h3{margin:0 0 4px;font-size:1rem}
+.cmp ol{margin:4px 0 0;padding-left:1.4em}
+.cmp .pro{color:var(--ok)}.cmp .con{color:var(--warn)}
+select{font-family:inherit;font-size:1rem;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--fg)}
+/* ---------- 상담 카드(기사 한 분당 A4 한 장) ---------- */
+.sheet{background:#fff;color:#111;border:1px solid var(--line);border-radius:6px;padding:20px;font-size:14px;line-height:1.5}
+.sheet h3{margin:0 0 4px;font-size:1.3rem}
+.sheet h4{margin:14px 0 4px;font-size:1rem;border-bottom:2px solid #0b6b4f;padding-bottom:2px}
+.sheet .meta{color:#444;margin:0 0 8px}
+.sheet .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.sheet .box{border:1px solid #bbb;border-radius:4px;padding:8px 10px}
+.sheet .box b{display:block;margin-bottom:2px}
+.sheet table{font-size:12.5px;width:100%}
+.sheet th,.sheet td{border:1px solid #bbb;padding:3px 6px;position:static;color:#111;background:#fff}
+.sheet th{background:#eee}
+.sheet td.l1{background:#fff}.sheet td.l2{background:#fff6d6}.sheet td.l3{background:#fdecd9}.sheet td.l4{background:#f5b78b;font-weight:700}
+.sheet ol{margin:4px 0;padding-left:1.3em}
+.sheet ol li{margin:3px 0}
+.sheet .memo{border:1px solid #888;height:70px;margin-top:4px}
+.sheet .sign{display:flex;gap:24px;margin-top:10px}
+.sheet .sign span{flex:1;border-bottom:1px solid #444;padding-bottom:14px}
+.sheet .foot{color:#555;font-size:11.5px;margin-top:8px}
+/* ---------- [v20261012-04] 회차 묶음 표: 가로 = 운행(출발 시각순), 세로 = 정류장 ---------- */
+:root{--bad-bg:#f8cfcf;--bad-fg:#9b1c1c;--late-bg:#fdecd9;--gray-fg:#8a948f}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bad-bg:#4a2323;--bad-fg:#ff9a9a;--late-bg:#3b2a17;--gray-fg:#7d8b84}}
+:root[data-theme="dark"]{--bad-bg:#4a2323;--bad-fg:#ff9a9a;--late-bg:#3b2a17;--gray-fg:#7d8b84}
+button.ghost.on{background:var(--accent);color:var(--accent-fg)}
+.gridtbl th.gone,.gridtbl td.gone{background:var(--bg);color:var(--muted);font-style:italic;border-left:2px dashed var(--line)}   /* BIS에 기록이 없는 운행 자리 */
+.roster{margin-top:14px}.roster summary{cursor:pointer;font-weight:700}.roster table{margin-top:8px}
+.roster tr.warn td{background:var(--late-bg)}
+.gridscroll{overflow:auto;max-height:75vh;border:1px solid var(--line);border-radius:6px}
+table.gridtbl{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%;font-size:.88rem}
+.gridtbl th,.gridtbl td{border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:3px 8px;text-align:center;white-space:nowrap;background:var(--panel)}
+.gridtbl .gh th{position:sticky;height:28px;box-sizing:border-box;top:var(--t);z-index:2;font-weight:700}
+.gridtbl .gh th.gl{left:0;z-index:4;text-align:left}
+.gridtbl td.gl,.gridtbl th.gl{position:sticky;left:0;z-index:1;text-align:left;min-width:190px;max-width:230px;overflow:hidden;text-overflow:ellipsis}
+.gridtbl td.gc{min-width:92px;line-height:1.25}
+.gridtbl td.gc .g{font-weight:700}
+.gridtbl td.bad{background:var(--bad-bg);color:var(--bad-fg)}      /* 밀착: 앞차에 너무 붙음 */
+.gridtbl td.late{background:var(--late-bg);color:var(--warn)}      /* 지연: 앞차와 너무 벌어짐 */
+.gridtbl td.edge .g{font-weight:400;font-style:italic}   /* 앞 묶음의 차와 잰 간격(끝에 *): 최소·최대에서는 제외 */
+.gridtbl td.mm{min-width:150px;font-size:.82rem}
+.gridtbl th.flag{color:var(--bad-fg);background:var(--bad-bg)}
+#printArea{display:none}
+@media print{
+  body{background:#fff;padding:0}
+  .wrap{display:none}
+  #printArea{display:block}
+  #printArea .sheet{border:0;border-radius:0;padding:0;page-break-after:always;break-after:page}
+  @page{size:A4;margin:12mm}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>운행기록 점검기 <small style="font-size:.9rem;color:var(--muted)">사내규정판</small></h1>
+    <p class="sub">BIS 운행기록표 CSV를 올리면 사내 「지연/밀착 승무원 선정기준」에 따라 선정 여부를 계산합니다. 파일은 이 컴퓨터 안에서만 처리되고 밖으로 나가지 않습니다.</p>
+  </header>
+
+  <section class="panel">
+    <label class="drop" id="drop" tabindex="0" for="file">
+      <strong>① 여기에 BIS 운행기록 CSV 파일을 끌어다 놓거나 눌러서 고르세요</strong>
+      <span class="note">BIS 사이트에서 내려받은 노선별 운행기록 파일 (하루치도, 여러 날 이어진 주간 파일도 됩니다)</span>
+      <input id="file" type="file" accept=".csv" hidden>
+    </label>
+    <div class="row">
+      <label for="namefile">② 운전자 이름표(엑셀, 선택)</label>
+      <input id="namefile" type="file" accept=".xlsx,.xls">
+      <span id="namestate" class="note" style="margin:0"></span>
+      <button id="nameclear" class="ghost" type="button" hidden>저장된 이름표 지우기</button>
+    </div>
+    <div class="row">
+      <label for="watch">③ 이 노선에서 지켜볼 기사 ID(쉼표로 구분)</label>
+      <input id="watch" type="text" value="" placeholder="예: 100706, 100227">
+      <span id="watchstate" class="note" style="margin:0">CSV를 올리면 그 노선의 목록이 나타납니다</span>
+    </div>
+    <p id="msg" role="status"></p>
+  </section>
+
+  <section id="out" hidden class="wrap">
+    <div class="panel">
+      <h2>한눈에 보기</h2>
+      <ul class="easy" id="easy"></ul>
+    </div>
+    <div class="panel">
+      <div class="head"><h2 id="title">요약</h2>
+        <button id="xlsx" class="ghost">엑셀 파일로 저장</button></div>
+      <div class="cards" id="cards"></div>
+      <p class="note" id="basis" style="margin-top:12px"></p>
+    </div>
+    <div class="panel" id="gridpanel"></div>
+    <div class="panel">
+      <div class="head"><h2>상담 카드 (기사 한 분당 한 장)</h2>
+        <button id="printall" type="button">선택한 기사 인쇄</button></div>
+      <p class="note">올린 CSV에 나온 기사 전원의 카드가 만들어집니다. 인쇄할 기사를 체크하고 위의 '선택한 기사 인쇄'를 누르세요. '미리보기'로 카드 한 장을 먼저 볼 수 있습니다. 처음에는 ③칸의 지켜볼 기사가 체크되어 있습니다. 앞차 기사 이름은 카드에 넣지 않았습니다.</p>
+      <div id="cardsec" class="wrap"></div>
+    </div>
+    <div class="panel" id="comparepanel"></div>
+    <div class="panel" id="detailpanel" hidden></div>
+    <div id="tables" class="wrap"></div>
+    <p class="note">'표 복사'를 누른 뒤 엑셀 칸을 눌러 붙여넣기(Ctrl+V) 하면 표가 그대로 들어갑니다. 프로그램 버전 <span id="ver"></span></p>
+  </section>
+</div>
+<div id="printArea"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<script>
+// =====================================================================
+// 운행기록 점검기 (사내규정판)   버전: v20261012-08   ← 날짜-일련번호
+// [v20261012-08 변경] 엑셀 저장에 날짜별 '상세' 시트(회차 묶음 표)와 '일람' 시트 추가. 색·시간 서식 포함(ExcelJS 사용).
+// [v20261012-07 변경] 한 기사 건수가 '보통'보다 많으면(다른 기사 운행이 그 ID로 찍힌 경우, 예: 6일 이복현 → 함길선 ID) 시각으로 묶음을 다시 정하고 사유를 표시.
+// [v20261012-06 변경] '그날 전체 운행 일람' 추가 (회차 묶음 표 아래, 접었다 펴는 표).
+//    BIS 자료에서 기사 ID가 비어 있거나, 기사의 운행 건수가 다른 기사와 다르거나, 검지가 적은 운행을 찾아 '확인' 칸에 표시합니다.
+//    배차일보에는 있는데 묶음 표에서 안 보이는 기사가 있을 때 어디로 갔는지 찾아보는 용도입니다.
+// [v20261012-05 변경] '회차' 묶는 방식을 배차일보와 같게 고침.
+//    예전: BIS의 운행회차 번호(= 차량이 그날 몇 번째 운행했나)  → 한 차를 두 기사가 나눠 타면 오후 기사가 엉뚱한 회차로 들어갔습니다.
+//    지금: 기사 한 명이 그날 몇 번째 운행했나 = n회차, 그 기사의 첫 운행이 12시 전이면 '오전 근무', 아니면 '오후 근무'.
+//    → 오전 1회차 / 오전 2회차 / 오후 1회차 / 오후 2회차 로 묶입니다. 평균 배차간격 기준도 이 묶음끼리 구합니다.
+//    예전 방식으로 되돌리려면 아래 [기준값]의 묶음방식_기본을 'BIS'로 바꾸세요.
+// [v20261012-04 변경] ① '회차 묶음 표'(정류장 x 운행) 추가 ② 이름표 번호를 6자리로 맞춤(앞의 0 복원)
+//                      ③ 화면 최대 폭 1000 → 1700 ④ 지켜볼 기사 ID도 6자리로 맞춤
+// 코드를 모르는 분도 읽을 수 있게 줄마다 설명을 달았습니다.
+// 크게 3부분: [기준값] → [계산하는 부분(CORE)] → [화면에 보여주는 부분]
+//
+// 사내 규정(지연/밀착 승무원 선정기준)을 이렇게 옮겼습니다.
+//  1) 기준 = '회차별 평균 배차간격'  (1회차끼리, 2회차끼리... 따로 구합니다)
+//  2) 지연 = 앞차와의 간격이 기준의 170% 초과 (기준 + 기준의 70%)
+//     밀착 = 앞차와의 간격이 기준의 30% 미만 (기준 - 기준의 70%)
+//  3) 정류장마다 앞차와의 간격을 재서, 위반한 정류장이 '문턱' 개수를 넘으면 그 회차를 선정
+//  4) 문턱 = 도착 정류장 수 x 비율, 비율은 그날 운행 차량 수로 정합니다.
+//        10대 이하 40% / 11~15대 50% / 16~20대 60% / 21대 이상 70%
+//  5) 예외: 내가 '밀착'인데 내 앞차가 '지연' 선정이면, 또는 내가 '지연'인데 앞차가
+//     '밀착' 선정이면 선정에서 빼줍니다(예외 인정).
+// =====================================================================
+var VERSION = 'v20261012-08';
+
+// ---------- [기준값] 여기 숫자만 바꾸면 점검이 더 엄격/느슨해집니다 ----------
+var 지연_배수 = 1.7;          // 기준의 1.7배 초과면 '지연 정류장'
+var 밀착_배수 = 0.3;          // 기준의 0.3배 미만이면 '밀착 정류장'
+var 기준제외_시간_초 = 7200;   // 그룹 중앙 시각에서 2시간 넘게 벗어난 차는 '기준' 계산에서 뺍니다(교체차 등). 'BIS' 방식일 때만 씁니다.
+var 기준제외_배차일보_초 = 10800; // 배차일보 방식은 한 묶음이 4시간 넘게 이어지므로 3시간으로 넓힙니다.
+var 묶음방식_기본 = '배차일보';  // '배차일보' = 기사의 n번째 운행 + 오전/오후 근무 / 'BIS' = 예전 방식(차량의 n번째 운행)
+var 오전_근무_기준_시 = 12;      // 기사의 그날 첫 운행이 이 시각(시) 전이면 오전 근무, 이후면 오후 근무
+var 참고_비율 = 0.25;         // 문턱의 이 비율 이상이면 '참고'(카드·상세에서 연한 표시)
+var 주의_비율 = 0.5;          // 선정은 아니어도 문턱의 이 비율 이상이면 노란색(주의)으로 표시
+var 저녁_시작_시 = 17;        // 이 시각 이후 출발 회차를 '저녁'으로 따로 셉니다
+var 검지_의심_미만 = 250;     // 정류소 260곳 중 이 값 미만만 잡힌 회차는 '단말기 의심'
+
+// 운행 차량 수로 선정 비율을 정합니다. (사내 규정 표)
+function 선정비율(차량수) {
+  if (차량수 <= 10) return 0.4;
+  if (차량수 <= 15) return 0.5;
+  if (차량수 <= 20) return 0.6;
+  return 0.7;
+}
+
+// ===CORE-START=== (계산하는 부분: 화면과 상관없이 숫자만 다룹니다)
+
+// '06:31:17' 글자를 '0시부터 몇 초'인 숫자로 바꿉니다. 빈칸이면 null(없음).
+function 초로(t) {
+  t = String(t == null ? '' : t).trim();
+  if (t === '' || t.indexOf(':') < 0) return null;
+  var p = t.split(':');
+  return (+p[0]) * 3600 + (+p[1]) * 60 + (+p[2]);
+}
+// 초 숫자를 다시 '06:31' 글자로 바꿉니다. (24시 넘으면 24시간을 뺍니다)
+function 시각글자(sec) {
+  if (sec == null) return '';
+  sec = Math.round(sec) % 86400;
+  var h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60);
+  return [h, m].map(function (x) { return String(x).padStart(2, '0'); }).join(':');
+}
+// 초 숫자를 '06:31:17'(시:분:초) 글자로 바꿉니다. 앞차와 간격을 초 단위로 보여줄 때 씁니다.
+function 시각초(sec) {
+  if (sec == null) return '';
+  sec = Math.round(sec) % 86400;
+  var h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), x = sec % 60;
+  return [h, m, x].map(function (v) { return String(v).padStart(2, '0'); }).join(':');
+}
+// '20260925' → '금'
+function 요일(d) {
+  var dt = new Date(+d.slice(0, 4), +d.slice(4, 6) - 1, +d.slice(6, 8));
+  return '일월화수목금토'[dt.getDay()];
+}
+// CSV 글자 덩어리를 '줄 x 칸' 표로 나눕니다. (따옴표 안의 쉼표도 처리)
+function 표로(text) {
+  var rows = [], row = [], cur = '', q = false;
+  for (var i = 0; i < text.length; i++) {
+    var c = text[i];
+    if (q) { if (c === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += c; }
+    else if (c === '"') q = true;
+    else if (c === ',') { row.push(cur); cur = ''; }
+    else if (c === '\n') { row.push(cur); rows.push(row); row = []; cur = ''; }
+    else if (c !== '\r') cur += c;
+  }
+  if (cur !== '' || row.length) { row.push(cur); rows.push(row); }
+  return rows;
+}
+// 중앙값(가운데 값)과 평균을 구합니다.
+function 중앙값(a) {
+  var s = a.slice().sort(function (x, y) { return x - y; }), n = s.length;
+  return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2;
+}
+function 평균(a) { return a.reduce(function (s, x) { return s + x; }, 0) / a.length; }
+function 소수1(x) { return Math.round(x * 10) / 10; }
+
+// 여러 날이 이어 붙은 파일을 '운행일'로 시작하는 줄 기준으로 하루씩 자릅니다.
+function 하루씩(rows) {
+  var 시작 = [];
+  rows.forEach(function (r, i) { if (r.length && r[0].trim() === '운행일') 시작.push(i); });
+  return 시작.map(function (a, i) { return rows.slice(a, i + 1 < 시작.length ? 시작[i + 1] : rows.length); });
+}
+
+// 하루치 줄들을 '회차 정보'와 '정류소 통과 시각'으로 나눕니다.
+function 하루해석(rows) {
+  // 위쪽 정보줄: 4번째 칸의 이름(예: '버스번호▶')을 열쇠로 값 목록을 찾습니다.
+  var 헤더 = {};
+  for (var i = 0; i < 12 && i < rows.length; i++) {
+    var r = rows[i];
+    if (r.length > 4 && r[3].trim()) 헤더[r[3].trim()] = r.slice(4);
+  }
+  if (!헤더['버스번호▶'] || !헤더['운행사원ID▶'] || !헤더['운행회차▶']) throw new Error('BIS 운행기록 파일 모양이 아닙니다.');
+  var n = 헤더['버스번호▶'].length, trips = [];
+  for (var k = 0; k < n; k++) {
+    trips.push({
+      차량: 헤더['버스번호▶'][k].trim(), 사원: 헤더['운행사원ID▶'][k].trim(),
+      회차: parseInt(헤더['운행회차▶'][k], 10),
+      운행분: parseFloat(헤더['운행시간(분)▶'][k]), 검지수: parseInt(헤더['검지수▶'][k], 10)
+    });
+  }
+  // 정류소 시각표 시작 줄('LENGTH'로 시작하는 줄의 다음 줄부터)
+  var start = 0;
+  while (start < rows.length && rows[start][0].indexOf('LENGTH') !== 0) start++;
+  start++;
+  var stops = [];
+  for (var j = start; j < rows.length; j++) {
+    var q = rows[j];
+    if (q.length < 4 + n || !q[1].trim()) continue;
+    stops.push({ 구분: q[2].trim(), 이름: q[3].trim(), 시각: q.slice(4, 4 + n).map(초로) });
+  }
+  // 자정(00시)을 넘으면 시각이 갑자기 작아집니다. 그때 하루(86400초)를 더해 이어 붙입니다.
+  for (var t = 0; t < n; t++) {
+    var add = 0, prev = null;
+    stops.forEach(function (s) {
+      var v = s.시각[t]; if (v == null) return;
+      if (prev != null && v + add < prev - 3600) add += 86400;
+      s.시각[t] = v + add; prev = v + add;
+    });
+  }
+  // [v20261012-04] 도착 줄에 두 가지 정보를 붙여 둡니다. (잔류시간과 구간 운행시간을 계산할 때 씁니다)
+  //   출발시각 = 같은 정류장의 '출발' 줄 시각  → 잔류시간 = 출발시각 - 도착시각
+  //   직전출발 = 바로 앞 줄(앞 정류장의 '출발' 줄) 시각 → 구간 운행시간 = 도착시각 - 직전출발
+  for (var m = 0; m < stops.length; m++) {
+    if (stops[m].구분 !== '도착') continue;
+    if (m + 1 < stops.length && stops[m + 1].구분 === '출발' && stops[m + 1].이름 === stops[m].이름) stops[m].출발시각 = stops[m + 1].시각;
+    if (m > 0 && stops[m - 1].구분 === '출발') stops[m].직전출발 = stops[m - 1].시각;
+  }
+  return { 날짜: rows[0][1].trim(), 노선: rows[1][1].trim(), trips: trips, stops: stops };
+}
+
+// 객체 안에서 '가장 많이 나온 열쇠'를 찾습니다. (가장 자주 붙었던 앞차 찾기용)
+function 최다(map) {
+  var best = null, bv = -1;
+  Object.keys(map).forEach(function (k) { if (map[k] > bv) { bv = map[k]; best = k; } });
+  return best == null ? null : +best;
+}
+
+// 파일 내용 전체를 읽어 결과를 돌려줍니다. (하루치든 여러 날이든 같은 방식)
+function 점검(text, 방식) {
+  방식 = 방식 || 묶음방식_기본;           // '배차일보' 또는 'BIS'
+  var 제외초 = 방식 === '배차일보' ? 기준제외_배차일보_초 : 기준제외_시간_초;
+  var 날들 = 하루씩(표로(text));
+  if (!날들.length) throw new Error('BIS 운행기록 파일 모양이 아닙니다.');
+  var 일별 = [], 회차기록 = [], 노선 = '';
+  var 격자맵 = {};   // [v20261012-04] 날짜 → '회차 묶음 표'를 그리는 데 필요한 모든 숫자
+
+  날들.forEach(function (rows) {
+    var D = 하루해석(rows), trips = D.trips, stops = D.stops, n = trips.length;
+    var 날짜 = D.날짜, 요 = 요일(날짜); 노선 = D.노선;
+    var 도착 = stops.filter(function (s) { return s.구분 === '도착'; });   // '도착' 정류장만 씁니다
+    var 정류장수 = 도착.length;
+
+    // [v20261012-05] 운행마다 처음·마지막으로 찍힌 시각(= 시작·종료)
+    var 시작 = [], 종료 = [];
+    trips.forEach(function (_, k) {
+      var a = null, z = null;
+      stops.forEach(function (s) { var v = s.시각[k]; if (v != null) { if (a == null || v < a) a = v; if (z == null || v > z) z = v; } });
+      시작.push(a); 종료.push(z);
+    });
+
+    // [v20261012-05] 운행마다 '묶음'을 정합니다. 번호 = 묶음을 구분하는 숫자(오전 1회차=1, 오전 2회차=2, 오후 1회차=101 ...)
+    // 기본(BIS 방식)은 BIS가 붙인 운행회차 번호를 그대로 씁니다.
+    var 묶음 = trips.map(function (t) { return { 번호: t.회차, 회차: t.회차, 이름: t.회차 + '회차', 조: '' }; });
+    if (방식 === '배차일보') {
+      // 기사(사원ID)별로 그날 운행을 출발 시각순으로 세워 1회차, 2회차... 를 붙입니다. (배차일보의 1·2와 같습니다)
+      var 사원별 = {};
+      trips.forEach(function (t, k) { if (시작[k] != null) (사원별[t.사원] = 사원별[t.사원] || []).push(k); });
+      Object.keys(사원별).forEach(function (id) {
+        var ks = 사원별[id].sort(function (a, b) { return 시작[a] - 시작[b]; });
+        var 조 = 시작[ks[0]] / 3600 < 오전_근무_기준_시 ? '오전' : '오후';   // 그 기사의 첫 운행 시각으로 근무조를 정합니다
+        ks.forEach(function (k, i) { 묶음[k] = { 번호: (조 === '오후' ? 100 : 0) + i + 1, 회차: i + 1, 이름: 조 + ' ' + (i + 1) + '회차', 조: 조 }; });
+      });
+
+      // [v20261012-06] BIS에 일부 운행이 빠진 기사 바로잡기.
+      // 예) 이복현의 07:55 운행이 BIS에 없으면, 남은 12:31 운행이 '오후 1회차'로 잘못 들어갑니다.
+      // 대부분의 기사가 하는 운행 건수(표준)를 구하고, 그 건수를 다 채운 기사들이 각 묶음에서 출발하는 시각(중앙값)을 기준 삼아
+      // 건수가 모자란 기사(또는 기사 ID가 빈 운행)의 운행을 '시각이 가장 가까운 묶음'에 다시 넣습니다.
+      var 빠짐 = [];   // BIS에 기록이 없는 운행 자리: {사원, 번호, 이름}
+      var 빈도 = {}; Object.keys(사원별).forEach(function (id) { if (id !== '') 빈도[사원별[id].length] = (빈도[사원별[id].length] || 0) + 1; });
+      var 표준 = null, 최빈수 = -1; Object.keys(빈도).forEach(function (m) { if (빈도[m] > 최빈수) { 최빈수 = 빈도[m]; 표준 = +m; } });
+      var 완전 = Object.keys(사원별).filter(function (id) { return id !== '' && 사원별[id].length === 표준; });
+      if (표준 != null && 완전.length >= 3) {          // 기준으로 삼을 기사가 3명은 있어야 믿을 수 있습니다
+        var 슬롯시각 = {};
+        완전.forEach(function (id) { 사원별[id].forEach(function (k) { (슬롯시각[묶음[k].번호] = 슬롯시각[묶음[k].번호] || []).push(시작[k]); }); });
+        var 슬롯 = Object.keys(슬롯시각).map(function (b) { return { 번호: +b, 중앙: 중앙값(슬롯시각[b]) }; });
+        Object.keys(사원별).forEach(function (id) {
+          var 건 = 사원별[id].length;
+          if (id !== '' && 건 === 표준) return;           // 건수가 딱 맞는 기사는 그대로 둡니다 ([v07] 많은 기사도 아래에서 다시 넣습니다)
+          var 쓴 = {};
+          사원별[id].forEach(function (k) {              // 시각순으로 하나씩 가장 가까운 묶음에 넣습니다
+            var best = null, bd = 1e12;
+            슬롯.forEach(function (s) {
+              if (id !== '' && 건 < 표준 && 쓴[s.번호]) return;   // 건수가 모자란 기사는 같은 묶음에 두 번 넣지 않습니다. 많은 기사는 (다른 사람 운행이 섞인 것이므로) 겹쳐도 그대로 보여 줍니다
+              var d = Math.abs(s.중앙 - 시작[k]); if (d < bd) { bd = d; best = s; }
+            });
+            if (!best) return;
+            쓴[best.번호] = 1;
+            var 조 = best.번호 >= 100 ? '오후' : '오전', 회 = best.번호 % 100;
+            묶음[k] = { 번호: best.번호, 회차: 회, 이름: 조 + ' ' + 회 + '회차', 조: 조, 추정: true };
+          });
+          // 이 기사에게 비어 있는 자리(기록 없는 운행)를 적어 둡니다. (기사 ID가 빈 운행은 제외)
+          if (id === '') return;
+          var 조2 = 묶음[사원별[id][0]].조, 가짐 = {};
+          사원별[id].forEach(function (k) { 가짐[묶음[k].번호] = 1; });
+          for (var i = 1; i <= 표준; i++) {
+            var 번 = (조2 === '오후' ? 100 : 0) + i;
+            if (!가짐[번]) 빠짐.push({ 사원: id, 번호: 번, 이름: 조2 + ' ' + i + '회차' });
+          }
+        });
+      }
+    }
+
+    // 그날 운행 차량 수 → 선정 비율 → 문턱(위반 정류장이 이 개수를 넘으면 선정)
+    var 차량집합 = {}; trips.forEach(function (t) { 차량집합[t.차량] = 1; });
+    var 차량수 = Object.keys(차량집합).length;
+    var 문턱 = 선정비율(차량수) * 정류장수;
+
+    // 각 회차의 대표 시각: 기준 정류장(앞에서 두 번째 도착 정류장)의 통과 시각.
+    // 빈칸이면 그 차가 처음 찍힌 시각으로 대신합니다.
+    var 기준정류장 = 도착[1] || 도착[0];
+    var 대표 = trips.map(function (_, k) {
+      if (기준정류장.시각[k] != null) return 기준정류장.시각[k];
+      for (var z = 0; z < 도착.length; z++) if (도착[z].시각[k] != null) return 도착[z].시각[k];
+      return null;
+    });
+
+    // ---- 1) 회차별 기준(평균 배차간격) ----
+    // 같은 회차 번호끼리 모아 출발 순서로 세우고, 앞뒤 차 간격의 평균을 냅니다.
+    // 교체차처럼 시각이 크게 벗어난 차는 기준 계산에서만 뺍니다.
+    var 기준 = {}, 중심 = {};
+    var 회차목록 = {}; trips.forEach(function (t, k) { 회차목록[묶음[k].번호] = 1; });   // [v20261012-05] 묶음 번호로 묶습니다
+    Object.keys(회차목록).forEach(function (g) {
+      g = +g;
+      var ks = [];
+      trips.forEach(function (t, k) { if (묶음[k].번호 === g && 대표[k] != null) ks.push(k); });
+      if (!ks.length) return;
+      var m = 중앙값(ks.map(function (k) { return 대표[k]; }));
+      ks = ks.filter(function (k) { return Math.abs(대표[k] - m) <= 제외초; });
+      ks.sort(function (a, b) { return 대표[a] - 대표[b]; });
+      var gp = [];
+      for (var i = 0; i + 1 < ks.length; i++) gp.push((대표[ks[i + 1]] - 대표[ks[i]]) / 60);
+      if (!gp.length) return;               // 차가 한 대뿐인 회차는 기준을 못 구합니다
+      기준[g] = 평균(gp); 중심[g] = m;
+    });
+    var 기준이름들 = Object.keys(기준);
+    if (!기준이름들.length) throw new Error(날짜 + ' 일자의 배차간격 기준을 구하지 못했습니다.');
+    // 기준을 못 구한 회차나 시각이 크게 벗어난 차는 '시각이 가장 가까운 회차'의 기준을 빌려 씁니다.
+    function 기준고르기(k, 시각) {
+      var g = 묶음[k].번호;
+      if (기준[g] != null && Math.abs(중심[g] - 시각) <= 제외초) return 기준[g];
+      var best = null, bd = 1e12;
+      기준이름들.forEach(function (x) { var d = Math.abs(중심[x] - 시각); if (d < bd) { bd = d; best = x; } });
+      return 기준[best];
+    }
+
+    // ---- 2) 정류장마다 앞차와의 간격을 재서 지연/밀착 정류장 수를 셉니다 ----
+    var R = trips.map(function () { return { 지연: 0, 밀착: 0, 앞지연: {}, 앞밀착: {}, 기준: null, 상세: [] }; });
+    // [v20261012-04] G[차][정류장] = 그 차가 그 정류장을 지난 시각과 앞차와의 간격 (위반 여부와 상관없이 전부 보관)
+    var G = trips.map(function () { return []; });
+    도착.forEach(function (s, si) {      // si = 이 정류장이 도착 정류장 중 몇 번째인지(0부터)
+      var 순 = [];
+      s.시각.forEach(function (v, k) { if (v != null) 순.push([v, k]); });
+      순.sort(function (a, b) { return a[0] - b[0]; });                 // 이 정류장을 지나간 순서
+      if (순.length) G[순[0][1]][si] = { 통과: 순[0][0], 간격: null, 종류: '', 경계: false };   // 첫 차는 앞차가 없습니다
+      for (var i = 1; i < 순.length; i++) {
+        var k = 순[i][1], f = 순[i - 1][1];                             // k = 뒤차(나), f = 앞차
+        var gap = (순[i][0] - 순[i - 1][0]) / 60;                        // 앞차와의 간격(분)
+        var b = 기준고르기(k, 순[i][0]);
+        if (R[k].기준 == null) R[k].기준 = b;
+        // 경계 = 앞차가 다른 회차 묶음의 차(예: 2회차 첫 차의 앞차는 1회차 마지막 차). 출발 조정이 섞였을 수 있어 표에서 연하게 보여줍니다.
+        G[k][si] = { 통과: 순[i][0], 간격: gap, 종류: gap > b * 지연_배수 ? '지연' : (gap < b * 밀착_배수 ? '밀착' : ''),
+                     경계: 묶음[f].번호 !== 묶음[k].번호 };
+        // 위반한 정류장은 '어느 정류장에서, 앞차와 몇 분 차이였는지' 기록해 둡니다. (나중에 숫자를 눌러서 볼 수 있습니다)
+        var 기록 = { 순번: si + 1, 정류장: s.이름, 시각: 순[i][0], 앞시각: 순[i - 1][0], 앞: f, 간격: gap, 기준: b };
+        if (gap > b * 지연_배수) { R[k].지연++; R[k].앞지연[f] = (R[k].앞지연[f] || 0) + 1; 기록.종류 = '지연'; R[k].상세.push(기록); }
+        else if (gap < b * 밀착_배수) { R[k].밀착++; R[k].앞밀착[f] = (R[k].앞밀착[f] || 0) + 1; 기록.종류 = '밀착'; R[k].상세.push(기록); }
+      }
+    });
+
+    // ---- 3) 선정 판단 + 예외 판단 ----
+    R.forEach(function (r) { r.선정 = r.지연 > 문턱 ? '지연' : (r.밀착 > 문턱 ? '밀착' : ''); });
+    var 밀착선정수 = 0, 지연선정수 = 0, 예외수 = 0;
+    trips.forEach(function (t, k) {
+      var r = R[k], 예외 = false;
+      if (r.선정 === '밀착') { var f1 = 최다(r.앞밀착); if (f1 != null && R[f1].선정 === '지연') 예외 = true; }
+      if (r.선정 === '지연') { var f2 = 최다(r.앞지연); if (f2 != null && R[f2].선정 === '밀착') 예외 = true; }
+      var 결과 = r.선정 === '' ? '정상' : (예외 ? r.선정 + ' (예외 인정)' : r.선정 + ' 선정');
+      if (r.선정 && !예외) { if (r.선정 === '밀착') 밀착선정수++; else 지연선정수++; }
+      if (r.선정 && 예외) 예외수++;
+      var 출발 = 대표[k];
+      회차기록.push({
+        날짜: 날짜, 요일: 요, 회차: 묶음[k].조 ? 묶음[k].조 + ' ' + 묶음[k].회차 : 묶음[k].회차, 출발: 시각글자(출발), 차량: t.차량, 사원ID: t.사원,
+        기준_분: r.기준 == null ? '' : 소수1(r.기준), 지연정류장: r.지연, 밀착정류장: r.밀착, 문턱: Math.round(문턱),
+        문턱대비: Math.round(Math.max(r.지연, r.밀착) / 문턱 * 100) + '%',
+        결과: 결과, 저녁: (출발 != null && 출발 / 3600 >= 저녁_시작_시 && 출발 < 86400) ? 1 : 0,
+        검지수: t.검지수, _비율: Math.max(r.지연, r.밀착) / 문턱, _선정: r.선정 && !예외 ? r.선정 : '',
+        _밀착비: r.밀착 / 문턱, _지연비: r.지연 / 문턱, _정류장수: 정류장수,
+        // 위반 정류장 목록: 종류, 순번, 정류장 이름, 내 통과 시각, 앞차 통과 시각, 앞차와 간격(분), 기준분, 앞차 차량·기사
+        _상세: r.상세.map(function (d) {
+          return { 종류: d.종류, 순번: d.순번, 정류장: d.정류장, 통과: 시각초(d.시각), 앞통과: 시각초(d.앞시각),
+                   간격: 소수1(d.간격), 기준: 소수1(d.기준),
+                   선: d.종류 === '밀착' ? 소수1(d.기준 * 밀착_배수) : 소수1(d.기준 * 지연_배수),
+                   앞차량: trips[d.앞].차량.slice(-4), 앞사원: trips[d.앞].사원 };
+        })
+      });
+    });
+    일별.push({ 날짜: 날짜, 요일: 요, 운행차량: 차량수, 회차수: n, 문턱_정류장: Math.round(문턱),
+                선정_밀착: 밀착선정수, 선정_지연: 지연선정수, 예외인정: 예외수 });
+
+    // ---- [v20261012-04] 회차 묶음 표 자료 만들기 ----  (시작·종료 시각은 위에서 이미 구했습니다)
+    var 열 = trips.map(function (t, k) {
+      // 휴게시간 = 같은 '기사'의 바로 앞 운행이 끝난 뒤 이 운행이 시작될 때까지. (차량이 아니라 기사 기준입니다. 같은 차에서 기사가 바뀌면 휴게로 보지 않습니다)
+      var 앞종료 = null;
+      trips.forEach(function (u, j) {
+        if (j !== k && u.사원 === t.사원 && 종료[j] != null && 시작[k] != null && 종료[j] <= 시작[k] && (앞종료 == null || 종료[j] > 앞종료)) 앞종료 = 종료[j];
+      });
+      var 칸 = 도착.map(function (s, si) {
+        var g = G[k][si]; if (!g) return null;
+        return { 통과: g.통과, 간격: g.간격, 종류: g.종류, 경계: g.경계,
+                 잔류: (s.출발시각 && s.출발시각[k] != null) ? s.출발시각[k] - g.통과 : null,       // 정류장에 머문 시간(초)
+                 구간: (s.직전출발 && s.직전출발[k] != null) ? g.통과 - s.직전출발[k] : null };      // 앞 정류장 출발 → 여기 도착(초)
+      });
+      var 측정 = 0; 칸.forEach(function (c) { if (c && c.간격 != null) 측정++; });
+      return { 묶음: 묶음[k].번호, 묶음이름: 묶음[k].이름, 차량: t.차량, 사원: t.사원, 시작: 시작[k], 종료: 종료[k],
+               휴게: (앞종료 != null && 시작[k] != null) ? 시작[k] - 앞종료 : null,
+               기준: R[k].기준 == null ? null : 소수1(R[k].기준), 이상: R[k].지연 + R[k].밀착, 측정: 측정, 칸: 칸 };
+    });
+    // ---- [v20261012-06] 그날 전체 운행 일람 (출발 시각순) ----
+    // 기사 한 명이 그날 몇 건 운행했는지 세어, 대부분의 기사와 다른 기사는 '확인' 칸에 표시합니다. (짝이 되는 운행이 BIS에 없을 수 있습니다)
+    var 기사별수 = {}; trips.forEach(function (t) { 기사별수[t.사원] = (기사별수[t.사원] || 0) + 1; });
+    var 수빈도 = {}; Object.keys(기사별수).forEach(function (id) { if (id !== '') 수빈도[기사별수[id]] = (수빈도[기사별수[id]] || 0) + 1; });
+    var 보통 = null, 최빈 = -1; Object.keys(수빈도).forEach(function (m) { if (수빈도[m] > 최빈) { 최빈 = 수빈도[m]; 보통 = +m; } });   // 가장 많은 기사가 하는 운행 건수
+    var 검지최대 = Math.max.apply(null, trips.map(function (t) { return t.검지수 || 0; }));
+    var 일람 = trips.map(function (t, k) {
+      var 확인 = [];
+      if (t.사원 === '') 확인.push('기사 ID 없음');
+      else if (보통 != null && 기사별수[t.사원] !== 보통) 확인.push('이 기사 ' + 기사별수[t.사원] + '건 (보통 ' + 보통 + '건)' + (기사별수[t.사원] > 보통 ? ' → 다른 기사 운행이 이 ID로 찍혔을 수 있음' : ''));
+      if (검지최대 > 0 && t.검지수 < 검지최대 * 0.95) 확인.push('검지 ' + t.검지수 + '곳(단말기 의심)');
+      if (묶음[k].추정) 확인.push('묶음은 다른 기사들 시각을 보고 추정');
+      return { 시작: 시작[k], 종료: 종료[k], 차량: t.차량, 사원: t.사원, BIS회차: t.회차, 묶음이름: 묶음[k].이름, 검지수: t.검지수, 확인: 확인 };
+    }).sort(function (a, b) { return ((a.시작 == null ? 1e9 : a.시작) - (b.시작 == null ? 1e9 : b.시작)) || (a.차량 < b.차량 ? -1 : 1); });
+    격자맵[날짜] = { 요일: 요, 문턱: Math.round(문턱), 정류장: 도착.map(function (s) { return s.이름; }), 열: 열, 일람: 일람, 빠짐: 빠짐 || [], 기사수: Object.keys(기사별수).filter(function (id) { return id !== ''; }).length };
+  });
+
+  // ---- 4) 기사별 주간 합산 ----
+  var 기사맵 = {};
+  회차기록.forEach(function (r) {
+    var d = 기사맵[r.사원ID] || (기사맵[r.사원ID] = { 사원ID: r.사원ID, 회차수: 0, 선정_밀착: 0, 선정_지연: 0, 밀착정류장: 0, 지연정류장: 0, 저녁밀착: 0, 최고: 0, 최고회차: '', 밀착최고: 0, 지연최고: 0, 반복50: 0, 반복25: 0 });
+    d.회차수++; d.밀착정류장 += r.밀착정류장; d.지연정류장 += r.지연정류장;
+    if (r.저녁) d.저녁밀착 += r.밀착정류장;
+    if (r._밀착비 > d.밀착최고) d.밀착최고 = r._밀착비;
+    if (r._지연비 > d.지연최고) d.지연최고 = r._지연비;
+    if (r._비율 >= 주의_비율) d.반복50++;
+    if (r._비율 >= 참고_비율) d.반복25++;
+    if (r._선정 === '밀착') d.선정_밀착++;
+    if (r._선정 === '지연') d.선정_지연++;
+    if (r._비율 > d.최고) { d.최고 = r._비율; d.최고회차 = r.날짜.slice(4, 6) + '/' + r.날짜.slice(6, 8) + ' ' + r.출발 + ' (' + r.회차 + '회차)'; }
+  });
+  var 기사 = Object.keys(기사맵).map(function (id) {
+    var d = 기사맵[id];
+    return { 사원ID: d.사원ID, 회차수: d.회차수, 선정_밀착: d.선정_밀착, 선정_지연: d.선정_지연,
+             밀착정류장_합: d.밀착정류장, 지연정류장_합: d.지연정류장,
+             '한회차_밀착최고(%)': Math.round(d.밀착최고 * 100), '한회차_지연최고(%)': Math.round(d.지연최고 * 100),
+             '문턱50%이상_회차': d.반복50, '문턱25%이상_회차': d.반복25, 저녁밀착_합: d.저녁밀착,
+             문턱에_가장_가까운_회차: d.최고 > 0 ? d.최고회차 + ' · 문턱의 ' + Math.round(d.최고 * 100) + '%' : '' };
+  }).sort(function (a, b) { return (b.선정_밀착 + b.선정_지연) - (a.선정_밀착 + a.선정_지연) || Math.max(b['한회차_밀착최고(%)'], b['한회차_지연최고(%)']) - Math.max(a['한회차_밀착최고(%)'], a['한회차_지연최고(%)']); });
+
+  // ---- 5) 단말기 의심: 검지수가 너무 적은 회차는 기사가 아니라 차량 장비 문제일 가능성이 큽니다 ----
+  var 단말기 = 회차기록.filter(function (r) { return r.검지수 < 검지_의심_미만; })
+    .map(function (r) { return { 날짜: r.날짜, 요일: r.요일, 차량: r.차량, 사원ID: r.사원ID, 검지수: r.검지수 }; });
+
+  return { 노선: 노선, 일별: 일별, 회차기록: 회차기록, 기사: 기사, 단말기: 단말기, 회차수: 회차기록.length, 격자: 격자맵, 방식: 방식 };
+}
+// ===CORE-END===
+
+// ---------- [화면에 보여주는 부분] ----------
+var $ = function (id) { return document.getElementById(id); };
+var 마지막결과 = null, 마지막텍스트 = null, 이름맵 = {}, 표데이터 = {};
+
+// 보여줄 표 목록: 제목, 설명, 만드는 방법, 색칠 조건
+// 숫자를 눌러 상세를 보게 하는 공통 규칙: 밀착/지연 정류장 수가 1 이상이면 누를 수 있는 글자로 바꿉니다.
+function 상세링크(값, id, 종류, 키) {
+  return 값 > 0 ? '<button class="link" type="button" data-detail="' + id + '|' + 종류 + '|' + (키 || '') + '" title="눌러서 정류장 보기">' + 값 + '</button>' : 값;
+}
+function 공통칸(c, r) {
+  if (!r.사원ID) return null;
+  if (c === '밀착정류장_합') return 상세링크(r[c], r.사원ID, '밀착', '');   // 기사 한 명의 한 주 전체
+  if (c === '지연정류장_합') return 상세링크(r[c], r.사원ID, '지연', '');
+  if (c === '밀착정류장' && r.날짜) return 상세링크(r[c], r.사원ID, '밀착', r.날짜 + '|' + r.출발 + '|' + r.회차);   // 한 회차만
+  if (c === '지연정류장' && r.날짜) return 상세링크(r[c], r.사원ID, '지연', r.날짜 + '|' + r.출발 + '|' + r.회차);
+  return null;
+}
+var 표목록 = [
+  { 키: 'sel', 제목: '선정(지연·밀착) 목록', 설명: '규정상 선정된 회차입니다. (예외 인정)은 앞차가 반대 위반이라 선정에서 빼준 경우입니다. 앞차가 늦어서 뒤차가 따라붙을 수 있으니 기사 한 사람의 책임으로만 보지 마세요.',
+    색: function (r) { return String(r.결과).indexOf('선정') > 0; }, 칸: 공통칸 },
+  { 키: 'watch', 제목: '지켜볼 기사 상세', 설명: '③칸에 적은 기사의 회차별 기록입니다. 지연·밀착 정류장이 한 곳이라도 있던 회차만 보여줍니다. 문턱대비가 50% 이상이면 노란색, 선정이면 주황색입니다.',
+    색: function (r) { return String(r.결과).indexOf('선정') > 0 ? 'bad' : (parseInt(r.문턱대비, 10) >= 주의_비율 * 100 ? 'mid' : ''); }, 칸: 공통칸 },
+  { 키: '기사', 제목: '기사별 주간 현황', 설명: '두 종류의 숫자가 있습니다. ① 정류장_합: 기간 전체 회차를 더한 숫자(여러 회차에 흩어진 것도 합쳐짐). ② 한회차_최고(%): 가장 심했던 회차 하나만 문턱과 비교한 값(사내 규정이 보는 방식, 100%를 넘으면 선정). 문턱50%이상_회차는 반복 정도를 봅니다. 파란 글씨 숫자를 누르면 정류장과 앞차 간격이 나옵니다. 평가가 아니라 확인해볼 대상으로 보세요.',
+    색: function (r) { return (r.선정_밀착 + r.선정_지연) > 0 ? 'bad' : ''; }, 칸: 공통칸 },
+  { 키: '일별', 제목: '일별 요약', 설명: '그날 운행 차량 수에 따라 선정 비율이 달라지고, 그에 따라 문턱(정류장 수)이 정해집니다.' },
+  { 키: '단말기', 제목: '단말기 점검 의심 회차', 설명: '정류소 260곳 중 ' + 검지_의심_미만 + '곳 미만만 잡힌 회차입니다. 기사가 아니라 차량 단말기 문제일 가능성이 큽니다.' }
+];
+
+// 'ID' 칸 바로 옆에 이름 칸을 끼워 넣습니다. (이름표 엑셀을 올렸을 때만 채워집니다)
+function 이름넣기(rows) {
+  return rows.map(function (r) {
+    if (!('사원ID' in r)) return r;
+    var o = {};
+    Object.keys(r).forEach(function (k) { o[k] = r[k]; if (k === '사원ID') o['이름'] = 이름맵[r[k]] || ''; });
+    return o;
+  });
+}
+// 화면에 보이지 않는 계산용 칸(_로 시작)은 표에서 뺍니다.
+function 정리(rows) {
+  return rows.map(function (r) {
+    var o = {}; Object.keys(r).forEach(function (k) { if (k.charAt(0) !== '_' && k !== '저녁' && k !== '검지수') o[k] = r[k]; });
+    return o;
+  });
+}
+// [v20261012-04] 번호가 숫자로만 되어 있으면 6자리로 맞춥니다. (8924 → 008924)
+function 여섯자리(id) { return /^\d+$/.test(id) ? id.padStart(6, '0') : id; }
+function 감시목록() { return ($('watch').value || '').split(/[\s,]+/).filter(function (x) { return x; }).map(여섯자리); }
+
+// 표 하나를 화면에 그립니다. 비어 있으면 '해당 없음'을 보여줍니다.
+function 표그리기(rows, 색, 칸) {
+  if (!rows.length) return '<tr><td>해당 없음</td></tr>';
+  var cols = Object.keys(rows[0]);
+  var h = '<tr>' + cols.map(function (c) { return '<th>' + c + '</th>'; }).join('') + '</tr>';
+  rows.forEach(function (r) {
+    var c = 색 ? 색(r) : '';
+    var cls = c === true ? 'bad' : (c || '');
+    h += '<tr' + (cls ? ' class="' + cls + '"' : '') + '>' + cols.map(function (k) { var v = 칸 ? 칸(k, r) : null; return '<td>' + (v != null ? v : r[k]) + '</td>'; }).join('') + '</tr>';
+  });
+  return h;
+}
+function 카드(값, 이름, 종류) { return '<div class="card ' + 종류 + '"><b>' + 값 + '</b><span>' + 이름 + '</span></div>'; }
+function 날짜꼴(d) { return d.replace(/(\d{4})(\d\d)(\d\d)/, '$1-$2-$3'); }
+
+
+// ---------- [상담 카드] 기사 한 분의 기록으로 A4 한 장을 만듭니다 ----------
+var 상담질문 = [
+  '저녁 시간대에 앞차를 따라잡게 되는 이유가 무엇이라고 느끼십니까? (앞차 지연, 승객 많은 정류장, 교통 등)',
+  '종점에서 출발할 때부터 앞차와 간격이 좁았습니까, 운행 중에 좁아졌습니까?',
+  '정차·승하차 때 어려운 정류장이나 시간대가 있습니까?',
+  '차량이나 단말기에 불편한 점은 없었습니까?',
+  '일하면서 필요한 지원이 있습니까?'
+];
+// 문턱 대비 비율을 4단계 글자로 바꿉니다. (흑백으로 인쇄해도 구분되도록 글자도 함께 씁니다)
+function 단계(x) {
+  if (x._선정) return ['l4', '선정'];
+  if (x._비율 >= 주의_비율) return ['l3', '확인 필요'];
+  if (x._비율 >= 참고_비율) return ['l2', '참고'];
+  return ['l1', '양호'];
+}
+function 카드만들기(id, r) {
+  var 내것 = r.회차기록.filter(function (x) { return x.사원ID === id; })
+    .sort(function (a, b) { return (a.날짜 + a.출발) < (b.날짜 + b.출발) ? -1 : 1; });
+  var 이름 = 이름맵[id] || '', 일 = r.일별;
+  var 기간 = 날짜꼴(일[0].날짜) + ' ~ ' + 날짜꼴(일[일.length - 1].날짜);
+  var 머리 = '<h3>운행 점검 상담 카드</h3><p class="meta">' + (이름 ? 이름 + ' 기사님 · ' : '') + 'ID ' + id + ' · ' + r.노선 + ' · ' + 기간 + '</p>';
+  if (!내것.length) return '<div class="sheet">' + 머리 + '<p>이 파일에서 이 기사의 운행 기록을 찾지 못했습니다.</p></div>';
+
+  var 선 = 내것.filter(function (x) { return x._선정; }).length;
+  var 저녁 = 내것.filter(function (x) { return x.저녁; }), 저녁있음 = 저녁.filter(function (x) { return x.밀착정류장 > 0; });
+  var 저녁합 = 저녁.reduce(function (s, x) { return s + x.밀착정류장; }, 0);
+  var 낮밀착 = 내것.filter(function (x) { return !x.저녁; }).reduce(function (s, x) { return s + x.밀착정류장; }, 0);
+  var 낮회차 = 내것.filter(function (x) { return !x.저녁; }).length;
+  var 최 = 내것.slice().sort(function (a, b) { return b._비율 - a._비율; })[0];
+
+  // 좋았던 점 1개: 위에서부터 해당되는 첫 번째를 씁니다.
+  var 좋은 = 선 === 0 ? '이 기간 사내 규정으로 선정된 회차가 0건입니다. (' + 내것.length + '회차 운행)'
+    : (낮회차 && 낮밀착 === 0) ? '오전·한낮 회차에서는 앞차와 간격이 좁아진 곳이 없었습니다.'
+    : '운행하신 ' + 내것.length + '회차 중 선정은 ' + 선 + '회차입니다.';
+  // 확인할 점 1~2개
+  var 확인 = [];
+  if (저녁합 > 0) 확인.push(저녁_시작_시 + '시 이후 출발 ' + 저녁.length + '회차 중 ' + 저녁있음.length + '회차에서 앞차와 간격이 좁아진 정류장이 있었습니다. (합계 ' + 저녁합 + '곳)');
+  if (최._비율 >= 참고_비율) 확인.push('가장 가까웠던 회차는 ' + 날짜짧게(최.날짜) + ' ' + 최.출발 + ' 출발(' + 최.회차 + '회차)이며, 좁아진 정류장 ' + Math.max(최.지연정류장, 최.밀착정류장) + '곳으로 선정 문턱(' + 최.문턱 + '곳)의 ' + Math.round(최._비율 * 100) + '%입니다.');
+  if (!확인.length) 확인.push('특별히 확인할 점이 없습니다.');
+
+  var 표행 = 내것.filter(function (x) { return x.지연정류장 > 0 || x.밀착정류장 > 0; }).slice(0, 14);
+  var 표 = 표행.length ? '<table><tr><th>날짜</th><th>요일</th><th>출발</th><th>회차</th><th>밀착(곳)</th><th>지연(곳)</th><th>문턱 대비</th><th>단계</th></tr>' +
+    표행.map(function (x) { var d = 단계(x);
+      return '<tr><td>' + 날짜짧게(x.날짜) + '</td><td>' + x.요일 + '</td><td>' + x.출발 + '</td><td>' + x.회차 + '</td><td>' + x.밀착정류장 + '</td><td>' + x.지연정류장 + '</td><td>' + x.문턱대비 + '</td><td class="' + d[0] + '">' + d[1] + '</td></tr>'; }).join('') + '</table>'
+    : '<p>앞차와 간격이 좁아지거나 벌어진 정류장이 없었습니다.</p>';
+
+  return '<div class="sheet">' + 머리 +
+    '<p><b>한 줄 요약:</b> 선정 ' + 선 + '건. 이 카드는 평가가 아니라 함께 이야기하기 위한 참고 자료입니다.</p>' +
+    '<div class="two"><div class="box"><b>좋았던 점</b>' + 좋은 + '</div>' +
+    '<div class="box"><b>함께 확인할 점</b>' + 확인.map(function (t) { return '· ' + t; }).join('<br>') + '</div></div>' +
+    '<h4>회차별 기록 (간격이 좁아지거나 벌어진 정류장이 있던 회차)</h4>' + 표 +
+    '<h4>상담 질문</h4><ol>' + 상담질문.map(function (q) { return '<li>' + q + '</li>'; }).join('') + '</ol>' +
+    '<h4>기사님 의견</h4><div class="memo"></div>' +
+    '<div class="sign"><span>면담일:</span><span>소장 확인:</span><span>기사 확인:</span></div>' +
+    '<p class="foot">밀착=회차별 평균 배차간격의 ' + (밀착_배수 * 100) + '% 미만, 지연=' + (지연_배수 * 100) + '% 초과인 정류장 수입니다. 선정 문턱은 운행 차량 수에 따라 정류장 수의 40~70%입니다. 앞차가 늦어서 뒤차가 붙을 수도 있습니다. · 프로그램 ' + VERSION + '</p></div>';
+}
+// ---------- [기사 선택 목록] 모든 기사의 개인 카드를 만들고, 인쇄할 기사를 고릅니다 ----------
+var 카드기준텍스트 = null;   // 새 CSV를 올렸는지 알아보는 표시 (새로 올리면 선택을 처음 상태로 되돌립니다)
+var 미리보기ID = '';
+// 기사 한 명당 한 줄에 쓸 숫자를 모읍니다. (지켜볼 기사 → 선정 많은 순 → 문턱에 가까운 순)
+function 카드목록자료(r, 감시) {
+  var 최 = {};
+  r.회차기록.forEach(function (x) { if (!(x.사원ID in 최) || x._비율 > 최[x.사원ID]) 최[x.사원ID] = x._비율; });
+  return r.기사.map(function (d) {
+    return { id: d.사원ID, 이름: 이름맵[d.사원ID] || '', 회차수: d.회차수, 선정: d.선정_밀착 + d.선정_지연,
+             밀착합: d.밀착정류장_합, 지연합: d.지연정류장_합, 반복: d['문턱50%이상_회차'], 최고: 최[d.사원ID] || 0, 지켜봄: 감시.indexOf(d.사원ID) >= 0 };
+  }).sort(function (a, b) { return (b.지켜봄 - a.지켜봄) || (b.선정 - a.선정) || (b.최고 - a.최고); });
+}
+function 선택수갱신() {
+  var n = document.querySelectorAll('#cardsec input[data-id]:checked').length;
+  $('printall').textContent = '선택한 기사 ' + n + '명 인쇄';
+  $('printall').disabled = !n;
+  if ($('selcount')) $('selcount').textContent = '현재 ' + n + '명 선택';
+}
+function 미리보기그리기(id) {
+  미리보기ID = id;
+  if ($('cardpreview')) $('cardpreview').innerHTML = id ? 카드만들기(id, 마지막결과) : '<p class="note">기사 줄의 \'미리보기\'를 누르면 카드가 여기에 나옵니다.</p>';
+}
+function 카드그리기(r, 감시) {
+  var 새로 = (카드기준텍스트 !== 마지막텍스트);
+  var 체크됨 = {};
+  if (!새로) document.querySelectorAll('#cardsec input[data-id]:checked').forEach(function (c) { 체크됨[c.getAttribute('data-id')] = true; });
+  else { 감시.forEach(function (id) { 체크됨[id] = true; }); 미리보기ID = 감시[0] || ''; }
+  카드기준텍스트 = 마지막텍스트;
+  var 목록 = 카드목록자료(r, 감시);
+  var 줄 = 목록.map(function (d) {
+    var 색 = d.선정 > 0 ? 'bad' : (d.최고 >= 주의_비율 ? 'mid' : '');
+    return '<tr' + (색 ? ' class="' + 색 + '"' : '') + ' data-key="' + (d.이름 + ' ' + d.id) + '"><td><input type="checkbox" data-id="' + d.id + '"' + (체크됨[d.id] ? ' checked' : '') +
+      ' aria-label="' + (d.이름 || d.id) + ' 선택"></td><td>' + (d.지켜봄 ? '★ ' : '') + (d.이름 || '(이름표 없음)') + '</td><td>' + d.id + '</td><td>' + d.회차수 + '</td><td>' + d.선정 + '</td><td>' + 상세링크(d.밀착합, d.id, '밀착', '') + '</td><td>' + 상세링크(d.지연합, d.id, '지연', '') + '</td><td>' + Math.round(d.최고 * 100) + '%</td><td>' + d.반복 + '</td>' +
+      '<td><button class="ghost" type="button" data-view="' + d.id + '">미리보기</button></td></tr>';
+  }).join('');
+  $('cardsec').innerHTML =
+    '<div class="row" style="margin-top:0"><label for="cardsearch">기사 찾기</label><input id="cardsearch" type="text" placeholder="이름이나 ID" style="min-width:160px">' +
+    '<button class="ghost" type="button" data-act="all">보이는 기사 모두 선택</button>' +
+    '<button class="ghost" type="button" data-act="flag">선정·확인 필요 기사만 선택</button>' +
+    '<button class="ghost" type="button" data-act="watch">지켜볼 기사만 선택</button>' +
+    '<button class="ghost" type="button" data-act="none">모두 해제</button>' +
+    '<span id="selcount" class="note" style="margin:0"></span></div>' +
+    '<p class="note">★는 ③칸의 지켜볼 기사입니다. 주황색은 선정, 노란색은 문턱의 ' + (주의_비율 * 100) + '% 이상인 기사입니다. 「한 회차 기준 최고」는 가장 심했던 회차 하나만 문턱과 비교한 값이고, 「정류장 합」은 모든 회차를 더한 값입니다. 파란 글씨 숫자를 누르면 정류장과 앞차 간격이 나옵니다.</p>' +
+    '<div class="scroll" style="max-height:45vh"><table><tr><th>선택</th><th>이름</th><th>ID</th><th>회차수</th><th>선정</th><th>밀착 정류장 합</th><th>지연 정류장 합</th><th>한 회차 기준 최고(밀착·지연)</th><th>문턱 50%↑ 회차</th><th>카드</th></tr>' + 줄 + '</table></div>' +
+    '<h3 style="margin:12px 0 0;font-size:1rem">미리보기</h3><div id="cardpreview"></div>';
+  미리보기그리기(미리보기ID);
+  선택수갱신();
+}
+// 카드 목록 안에서 일어나는 클릭·체크·글자 입력을 한곳에서 처리합니다.
+function 카드칸연결() {
+  var 영역 = $('cardsec');
+  영역.addEventListener('change', function (e) { if (e.target.getAttribute && e.target.getAttribute('data-id')) 선택수갱신(); });
+  영역.addEventListener('input', function (e) {
+    if (e.target.id !== 'cardsearch') return;
+    var q = e.target.value.trim();
+    영역.querySelectorAll('tr[data-key]').forEach(function (tr) { tr.style.display = (!q || tr.getAttribute('data-key').indexOf(q) >= 0) ? '' : 'none'; });
+  });
+  영역.addEventListener('click', function (e) {
+    var t = e.target, v = t.getAttribute && t.getAttribute('data-view'), act = t.getAttribute && t.getAttribute('data-act');
+    if (v) { 미리보기그리기(v); return; }
+    if (!act) return;
+    var 감시 = 감시목록(), 별 = {};
+    if (act === 'flag') (마지막결과.회차기록 || []).forEach(function (x) { if (x._선정 || x._비율 >= 주의_비율) 별[x.사원ID] = true; });
+    영역.querySelectorAll('tr[data-key]').forEach(function (tr) {
+      var c = tr.querySelector('input[data-id]'), id = c.getAttribute('data-id'), 보임 = tr.style.display !== 'none';
+      if (act === 'none') c.checked = false;
+      else if (act === 'all') { if (보임) c.checked = true; }
+      else if (act === 'watch') c.checked = 감시.indexOf(id) >= 0;
+      else if (act === 'flag') c.checked = !!별[id];
+    });
+    선택수갱신();
+  });
+}
+// 인쇄: 숨겨둔 인쇄 영역에 카드를 채우고 인쇄 창을 엽니다. (인쇄 창에서 'PDF로 저장'도 됩니다)
+function 인쇄하기(ids) {
+  $('printArea').innerHTML = ids.map(function (id) { return 카드만들기(id, 마지막결과); }).join('');
+  window.print();
+}
+
+
+// ---------- [기억하기] 이름표와 지켜볼 기사 ID를 이 컴퓨터의 브라우저에 저장해 둡니다 ----------
+// 한 번 올리면 다음부터는 CSV만 올리면 됩니다. 기사 명단이 바뀌었을 때만 이름표를 다시 올리세요.
+// (브라우저가 저장을 막거나 사이트 데이터를 지우면 비어 있을 수 있습니다. 그때는 다시 올리면 됩니다.)
+var 이름표_열쇠 = 'bis_이름표_v1', 감시_열쇠 = 'bis_감시_v2';   // v2: 노선마다 따로 저장
+var 현재노선 = '';   // 지금 올린 CSV의 노선 (예: '1-1번', '5번')
+// 처음 한 번만 쓰는 기본값입니다. 노선 이름을 열쇠로, 기사 ID를 값으로 적습니다. 수정하면 그 노선의 저장 목록이 우선합니다.
+var 지켜볼_초기값 = { '1-1번': '100706, 100227' };
+function 저장읽기(열쇠) { try { return JSON.parse(localStorage.getItem(열쇠)); } catch (e) { return null; } }
+function 저장쓰기(열쇠, 값) { try { localStorage.setItem(열쇠, JSON.stringify(값)); return true; } catch (e) { return false; } }
+function 저장지우기(열쇠) { try { localStorage.removeItem(열쇠); } catch (e) {} }
+function 이름표상태표시() {
+  var n = Object.keys(이름맵).length, 저장 = 저장읽기(이름표_열쇠);
+  $('namestate').textContent = n ? ('저장된 이름표 ' + n + '명' + (저장 && 저장.날짜 ? ' (' + 저장.날짜 + ' 저장)' : '') + ' · 명단이 바뀌었을 때만 다시 올리세요') : '저장된 이름표 없음';
+  $('nameclear').hidden = !n;
+}
+function 저장된것불러오기() {
+  var 이름표 = 저장읽기(이름표_열쇠);
+  if (이름표 && 이름표.맵) 이름맵 = 이름표.맵;
+  이름표상태표시();
+}
+
+
+// 이 노선에 저장된 '지켜볼 기사' 목록을 칸에 채웁니다. 저장된 게 없으면 기본값, 그것도 없으면 빈칸입니다.
+function 노선감시불러오기() {
+  var 저장 = 저장읽기(감시_열쇠) || {}, 값 = 저장[현재노선], 저장있음 = (값 != null);
+  if (값 == null) 값 = 지켜볼_초기값[현재노선] || '';
+  $('watch').value = 값;
+  $('watchstate').textContent = '노선 ' + 현재노선 + ' · ' + (저장있음 ? '저장된 목록' : (값 ? '처음 기본값(고치면 저장됩니다)' : '아직 없음 — 기사 ID를 적어 주세요'));
+}
+function 노선감시저장() {
+  if (!현재노선) { $('msg').textContent = '먼저 CSV를 올려 주세요. 노선을 알아야 그 노선의 목록으로 저장됩니다.'; return; }
+  var 저장 = 저장읽기(감시_열쇠) || {};
+  저장[현재노선] = $('watch').value;
+  var 됨 = 저장쓰기(감시_열쇠, 저장);
+  $('watchstate').textContent = '노선 ' + 현재노선 + ' · ' + (됨 ? '저장했습니다' : '이 브라우저에서는 저장되지 않았습니다');
+}
+
+
+// ---------- [기준 비교] 한 회차 최고 / 한 주 합계 / 반복 — 어느 쪽이 더 합리적인지 같은 자료로 나란히 봅니다 ----------
+function 기사이름(id) { return 이름맵[id] || id; }
+function 상위(rows, 점수, 글자, n) {
+  return rows.slice().sort(function (a, b) { return 점수(b) - 점수(a); }).slice(0, n).map(function (d, i) {
+    return '<li>' + 기사이름(d.사원ID) + ' <b>' + 글자(d) + '</b></li>';
+  }).join('');
+}
+function 규정점수(d) { return Math.max(d['한회차_밀착최고(%)'], d['한회차_지연최고(%)']); }
+function 합계점수(d) { return d.밀착정류장_합 + d.지연정류장_합; }
+function 반복점수(d) { return d['문턱50%이상_회차'] * 1000 + d['문턱25%이상_회차']; }
+function 비교패널그리기(r) {
+  var 기 = r.기사;
+  $('comparepanel').innerHTML =
+    '<h2>어느 기준이 더 합리적인가? (같은 자료로 비교)</h2>' +
+    '<p class="note">같은 기사들을 세 가지 잣대로 줄 세우면 위쪽 5명이 서로 다릅니다. 숫자 옆은 그 잣대의 값입니다.</p>' +
+    '<div class="cmp">' +
+      '<div class="box"><h3>① 규정 기준: 한 회차 최고</h3><ol>' + 상위(기, 규정점수, function (d) { return 규정점수(d) + '%'; }, 5) + '</ol>' +
+        '<p class="pro">좋은 점: 사내 선정 방식과 같습니다. 한 번에 몰린 경우를 잡아냅니다.</p><p class="con">약한 점: 여러 회차에 흩어진 반복은 낮게 나옵니다.</p></div>' +
+      '<div class="box"><h3>② 한 주 합계</h3><ol>' + 상위(기, 합계점수, function (d) { return 합계점수(d) + '곳'; }, 5) + '</ol>' +
+        '<p class="pro">좋은 점: 한 주 전체의 경향이 보입니다.</p><p class="con">약한 점: 한 번에 몰린 것과 흩어진 것을 구분 못 하고, 회차가 많은 기사에게 불리합니다.</p></div>' +
+      '<div class="box"><h3>③ 반복: 문턱 50% 이상 회차 수</h3><ol>' + 상위(기, 반복점수, function (d) { return d['문턱50%이상_회차'] + '회 (25%↑ ' + d['문턱25%이상_회차'] + '회)'; }, 5) + '</ol>' +
+        '<p class="pro">좋은 점: 되풀이되는 습관을 찾기 좋아 상담 대상 고르기에 맞습니다.</p><p class="con">약한 점: 사내 규정에는 없는 기준입니다.</p></div>' +
+    '</div>' +
+    '<p class="note" style="margin-top:10px"><b>제 의견(참고용)</b>: 선정과 공식 통보는 사내 규정대로 ①로만 하고, 상담할 사람을 고를 때는 ①과 ③을 함께 보세요. ②는 참고만 하는 것이 안전합니다. 어떤 기준을 쓸지는 소장님이 정하실 일입니다.</p>';
+}
+// 기사별 주간 현황 표를 고른 기준으로 다시 정렬합니다.
+function 기사정렬(모드) {
+  var 점수 = 모드 === 'sum' ? 합계점수 : (모드 === 'repeat' ? 반복점수 : 규정점수);
+  표데이터.기사.sort(function (a, b) { return 점수(b) - 점수(a) || 규정점수(b) - 규정점수(a); });
+  var i = 0; 표목록.forEach(function (s, x) { if (s.키 === '기사') i = x; });
+  $('t' + i).innerHTML = 표그리기(표데이터.기사, 표목록[i].색, 표목록[i].칸);
+}
+
+// ---------- [정류장 상세] 숫자를 누르면 어느 정류장에서 앞차와 몇 분 차이였는지 보여줍니다 ----------
+function 날짜짧게(d) { return d.slice(4, 6) + '/' + d.slice(6, 8); }
+// 12, 13, 14, 20 → '12~14번째, 20번째' 처럼 이어진 구간으로 줄여 씁니다.
+function 구간글자(nums) {
+  nums = nums.slice().sort(function (a, b) { return a - b; });
+  var out = [], a = nums[0], p = nums[0];
+  for (var i = 1; i <= nums.length; i++) {
+    if (i < nums.length && nums[i] === p + 1) { p = nums[i]; continue; }
+    out.push(a === p ? a + '번째' : a + '~' + p + '번째');
+    a = nums[i]; p = nums[i];
+  }
+  return out.join(', ');
+}
+var 현재상세 = null;   // 지금 열려 있는 상세 {id, 종류, 키, 텍스트}. 표가 다시 그려져도 같은 CSV면 계속 보여줍니다.
+function 상세보기(id, 종류, 키, 스크롤안함) {
+  현재상세 = { id: id, 종류: 종류, 키: 키, 텍스트: 마지막텍스트 };
+  var r = 마지막결과, 회차들 = r.회차기록.filter(function (x) {
+    return x.사원ID === id && (!키 || (x.날짜 + '|' + x.출발 + '|' + x.회차) === 키);
+  }).sort(function (a, b) { return (a.날짜 + a.출발) < (b.날짜 + b.출발) ? -1 : 1; });
+  var 줄 = [], 요약 = [], 곳수 = 0, 회차수 = 0, 전체 = 0;
+  회차들.forEach(function (x) {
+    var 목록 = x._상세.filter(function (d) { return d.종류 === 종류; });
+    if (!목록.length) return;
+    회차수++; 곳수 += 목록.length; 전체 = x._정류장수;
+    요약.push('<li><b>' + 날짜짧게(x.날짜) + ' ' + x.요일 + ' ' + x.출발 + ' 출발</b> (' + x.회차 + '회차) · ' + 목록.length + '곳 · 정류장 ' + 구간글자(목록.map(function (d) { return d.순번; })) + '</li>');
+    목록.forEach(function (d) {
+      줄.push('<tr><td>' + 날짜짧게(x.날짜) + '</td><td>' + x.요일 + '</td><td>' + x.출발 + '</td><td>' + x.회차 + '</td><td>' + d.순번 + '/' + x._정류장수 + '</td><td>' + d.정류장 +
+        '</td><td>' + d.통과 + '</td><td>' + d.앞통과 + '</td><td><b>' + d.간격 + '</b></td><td>' + (종류 === '밀착' ? d.선 + '분 미만' : d.선 + '분 초과') + '</td><td>' + d.앞차량 + '</td><td>' + 기사이름(d.앞사원) + '</td></tr>');
+    });
+  });
+  var 다른 = 종류 === '밀착' ? '지연' : '밀착';
+  var 머리 = '<div class="head"><h2>' + 기사이름(id) + (이름맵[id] ? ' (' + id + ')' : '') + ' · ' + 종류 + ' 정류장 ' + 곳수 + '곳' + (키 ? ' (한 회차)' : ' (' + 회차수 + '개 회차)') + '</h2>' +
+    '<span><button class="ghost" type="button" data-detail="' + id + '|' + 다른 + '|' + (키 || '') + '">' + 다른 + ' 정류장 보기</button> ' +
+    (키 ? '<button class="ghost" type="button" data-detail="' + id + '|' + 종류 + '|">이 기사 전체 회차 보기</button> ' : '') +
+    '<button class="ghost" type="button" id="detailcopy">표 복사</button> <button class="ghost" type="button" id="detailclose">닫기</button></span></div>';
+  $('detailpanel').innerHTML = 머리 +
+    '<p class="note">앞차와 간격(분)이 기준분보다 작을수록 바짝 붙은 것입니다. 앞차가 늦어서 뒤차가 붙을 수도 있으니 앞차 차량·기사도 함께 보세요. 이 화면은 소장 분석용이며, 앞차 기사 이름은 상담 카드에 넣지 않습니다.</p>' +
+    (요약.length ? '<ul class="easy">' + 요약.join('') + '</ul>' : '<p>' + 종류 + ' 정류장이 없습니다.</p>') +
+    (줄.length ? '<div class="scroll" style="max-height:60vh"><table id="tdetail"><tr><th>날짜</th><th>요일</th><th>출발</th><th>회차</th><th>순번</th><th>정류장</th><th>내 통과</th><th>앞차 통과</th><th>앞차와 간격(분)</th><th>기준분</th><th>앞차 차량</th><th>앞차 기사</th></tr>' + 줄.join('') + '</table></div>' : '');
+  $('detailpanel').hidden = false;
+  if (!스크롤안함) $('detailpanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ---------- [v20261012-04] 회차 묶음 표 ----------
+// 가로 = 운행(같은 회차 묶음 안에서 출발 시각순), 세로 = 정류장.
+// 바로 옆 칸이 앞차·뒷차입니다. 위쪽 고정 줄에 차량·기사·간격이상·총운행시간·휴게시간을 보여줍니다.
+var 격자상태 = { 날짜: '', 회차: 0, 모드: 'gap' };   // 지금 어떤 날짜·회차(묶음 번호)·보기 방식을 보고 있는지
+var 대조선정 = null;   // [v20261012-05] 반대 묶음 방식으로 계산한 선정 건수 {밀착, 지연} (참고용)
+
+// 초 숫자를 '6분42초'로 바꿉니다. 한 시간 넘으면 '1:05:42' 꼴입니다.
+function 길이글자(sec) {
+  if (sec == null) return '';
+  sec = Math.round(sec);
+  var 부호 = sec < 0 ? '-' : ''; sec = Math.abs(sec);
+  if (sec >= 3600) return 부호 + 시각초(sec);
+  if (sec < 60) return 부호 + sec + '초';
+  return 부호 + Math.floor(sec / 60) + '분' + String(sec % 60).padStart(2, '0') + '초';
+}
+function 분글자(min) { return min == null ? '' : 길이글자(min * 60); }
+
+// [v20261012-06] 그날 전체 운행 일람: 출발 시각순으로 한 줄씩 보여줍니다.
+// 이름표에 없는 기사 ID도 여기서 표시합니다. (이름표를 올렸을 때만)
+function 일람그리기(D) {
+  var 이름표있음 = Object.keys(이름맵).length > 0, 확인수 = 0;
+  var 줄들 = D.일람.map(function (x, i) {
+    var 확인 = x.확인.slice();
+    if (이름표있음 && x.사원 && !이름맵[x.사원]) 확인.push('이름표에 없는 ID');
+    if (확인.length) 확인수++;
+    return '<tr' + (확인.length ? ' class="warn"' : '') + '><td>' + (i + 1) + '</td><td>' + (x.시작 == null ? '' : 시각글자(x.시작)) +
+      '</td><td>' + (x.종료 == null ? '' : 시각글자(x.종료)) + '</td><td>' + x.차량.replace('경기', '') +
+      '</td><td>' + (x.사원 === '' ? '(없음)' : (이름맵[x.사원] || '(이름표 없음)')) + '</td><td>' + x.사원 +
+      '</td><td>' + x.BIS회차 + '</td><td>' + x.묶음이름 + '</td><td>' + x.검지수 + '</td><td>' + 확인.join(' · ') + '</td></tr>';
+  }).join('');
+  return '<details class="roster"' + (격자상태.일람열림 ? ' open' : '') + '><summary>그날 전체 운행 일람 — 운행 ' + D.일람.length + '건 · 기사 ' + D.기사수 + '명 · 확인 필요 ' + 확인수 + '건</summary>' +
+    '<p class="note">출발 시각순입니다. 배차일보에는 있는데 위 표에서 안 보이는 기사는 차량·시각으로 여기서 찾아보세요. ' +
+    '<b>확인</b> 칸의 뜻: <b>기사 ID 없음</b> = BIS가 기사를 기록하지 못한 운행 / <b>이 기사 n건(보통 m건)</b> = 짝이 되는 운행이 BIS에 없거나 다른 기사 ID로 기록됐을 수 있음 / ' +
+    '<b>검지 적음</b> = 단말기 의심 / <b>이름표에 없는 ID</b> = 이름표 엑셀에 없는 번호. 주황색 줄이 확인할 운행입니다.</p>' +
+    '<div class="gridscroll" style="max-height:50vh"><table><tr><th>순</th><th>출발</th><th>종료</th><th>차량</th><th>기사</th><th>기사 ID</th><th>BIS 회차</th><th>묶음</th><th>검지수</th><th>확인</th></tr>' + 줄들 + '</table></div></details>';
+}
+
+function 격자그리기() {
+  var r = 마지막결과, 영역 = $('gridpanel');
+  if (!r || !r.격자) { 영역.hidden = true; return; }
+  영역.hidden = false;
+  // 1) 날짜·회차 고르기 (없는 값이면 첫 번째로 되돌립니다)
+  var 날들 = r.일별.map(function (d) { return d.날짜; });
+  if (날들.indexOf(격자상태.날짜) < 0) 격자상태.날짜 = 날들[0];
+  var D = r.격자[격자상태.날짜];
+  // [v20261012-05] 묶음 번호(오전 1회차=1, 오전 2회차=2, 오후 1회차=101 ...)와 그 이름표
+  var 회차들 = [], 묶음이름 = {};
+  D.열.forEach(function (c) { if (회차들.indexOf(c.묶음) < 0) 회차들.push(c.묶음); 묶음이름[c.묶음] = c.묶음이름; });
+  회차들.sort(function (a, b) { return a - b; });
+  if (회차들.indexOf(격자상태.회차) < 0) 격자상태.회차 = 회차들[0];
+  var 열들 = D.열.filter(function (c) { return c.묶음 === 격자상태.회차; })
+                .sort(function (a, b) { return (a.시작 || 0) - (b.시작 || 0); });   // 출발 시각순
+  var 모드 = 격자상태.모드;
+
+  // 2) 위쪽 조작 줄: 날짜 / 회차 / 보기 방식
+  var 모드목록 = [['gap', '시간 · 앞차와 간격'], ['seg', '구간 운행시간'], ['dwell', '정류장 잔류시간']];
+  var 조절 = '<div class="row" style="margin-top:0"><label for="gridday">날짜</label><select id="gridday">' +
+    날들.map(function (d) { return '<option value="' + d + '"' + (d === 격자상태.날짜 ? ' selected' : '') + '>' + 날짜꼴(d) + ' (' + 요일(d) + ')</option>'; }).join('') + '</select> ' +
+    회차들.map(function (g) { return '<button type="button" class="ghost' + (g === 격자상태.회차 ? ' on' : '') + '" data-grid="turn|' + g + '">' + 묶음이름[g] + '</button>'; }).join(' ') +
+    ' <span class="note" style="margin:0">|</span> ' +
+    모드목록.map(function (m) { return '<button type="button" class="ghost' + (m[0] === 모드 ? ' on' : '') + '" data-grid="mode|' + m[0] + '">' + m[1] + '</button>'; }).join(' ') + '</div>';
+
+  // 3) 맨 위 고정 머리줄들 (한 줄 높이 28px, 줄마다 위에서 얼마나 떨어져 붙을지 --t로 정합니다)
+  var 머리 = [
+    ['운행 순서', function (c, i) { return i + 1; }],
+    ['차량', function (c) { return c.차량.replace('경기', ''); }],
+    ['기사', function (c) { return 기사이름(c.사원); }],
+    ['출발', function (c) { return 시각글자(c.시작); }],
+    ['기준(평균 배차간격)', function (c) { return c.기준 == null ? '' : c.기준 + '분'; }],
+    ['간격이상 (이상 / 잰 곳)', function (c) { return c.이상 + ' / ' + c.측정; }],
+    ['총운행시간', function (c) { return (c.시작 == null || c.종료 == null) ? '' : 시각초(c.종료 - c.시작); }],
+    ['휴게시간 (같은 기사 앞 운행 뒤)', function (c) { return c.휴게 == null ? '' : 길이글자(c.휴게); }]
+  ];
+  // [v20261012-06] 이 묶음에 있어야 하는데 BIS 자료에 없는 운행(기사 이름만 적힌 회색 열)을 맨 오른쪽에 붙입니다.
+  var 빈열 = (D.빠짐 || []).filter(function (b) { return b.번호 === 격자상태.회차; });
+  var 머리html = 머리.map(function (h, ri) {
+    var 칸들 = 열들.map(function (c, i) {
+      var 표시 = h[1](c, i), 경고 = (ri === 5 && c.이상 > D.문턱) ? ' flag' : '';
+      return '<th class="' + 경고.trim() + '" style="--t:' + (ri * 28) + 'px">' + 표시 + '</th>';
+    }).join('') + 빈열.map(function (b) {
+      var 글 = ri === 2 ? 기사이름(b.사원) : (ri === 3 ? 'BIS 기록 없음' : '');
+      return '<th class="gone" style="--t:' + (ri * 28) + 'px">' + 글 + '</th>';
+    }).join('');
+    var 끝 = ri === 0 ? ['최소 간격 · 그 시각', '최대 간격 · 그 시각'] : ['', ''];
+    return '<tr class="gh"><th class="gl" style="--t:' + (ri * 28) + 'px">' + h[0] + '</th>' + 칸들 +
+      '<th style="--t:' + (ri * 28) + 'px">' + 끝[0] + '</th><th style="--t:' + (ri * 28) + 'px">' + 끝[1] + '</th></tr>';
+  }).join('');
+
+  // 4) 정류장마다 한 줄: 각 운행의 값 + 오른쪽 끝에 이 정류장의 최소·최대 앞뒤차 간격
+  var 줄html = D.정류장.map(function (이름, si) {
+    var mn = null, mx = null;
+    var 칸들 = 열들.map(function (c) {
+      var x = c.칸[si];
+      if (!x) return '<td class="gc"></td>';
+      var 위 = 시각초(x.통과), 아래 = '', cls = 'gc';
+      if (모드 === 'gap') {
+        if (x.간격 != null) {
+          아래 = 분글자(x.간격) + (x.경계 ? '*' : '');
+          if (x.종류 === '밀착') cls += ' bad'; else if (x.종류 === '지연') cls += ' late';
+          if (x.경계) cls += ' edge';
+        }
+      } else if (모드 === 'seg') 아래 = 길이글자(x.구간);
+      else 아래 = 길이글자(x.잔류);
+      // 최소·최대는 같은 묶음 안의 앞차와 잰 값만 씁니다(경계 값 제외)
+      if (x.간격 != null && !x.경계) {
+        if (mn == null || x.간격 < mn.간격) mn = x;
+        if (mx == null || x.간격 > mx.간격) mx = x;
+      }
+      return '<td class="' + cls + '"><div>' + 위 + '</div><div class="g">' + 아래 + '</div></td>';
+    }).join('');
+    function 끝칸(x) { return '<td class="mm">' + (x ? '<b>' + 분글자(x.간격) + '</b> · ' + 시각초(x.통과) : '') + '</td>'; }
+    var 빈칸들 = 빈열.map(function () { return '<td class="gc gone"></td>'; }).join('');   // 기록 없는 운행 자리(회색)
+    return '<tr><td class="gl" title="' + 이름 + '">' + (si + 1) + ' ' + 이름 + '</td>' + 칸들 + 빈칸들 + 끝칸(mn) + 끝칸(mx) + '</tr>';
+  }).join('');
+
+  영역.innerHTML = '<div class="head"><h2>회차 묶음 표 (정류장 × 운행)</h2></div>' +
+    '<p class="note">' + (r.방식 === '배차일보'
+      ? '배차일보와 같은 방식으로 묶었습니다. 기사 한 명의 그날 n번째 운행이 n회차이고, 그 기사의 첫 운행이 ' + 오전_근무_기준_시 + '시 전이면 오전 근무, 아니면 오후 근무입니다. '
+      : '차량의 n번째 운행(BIS 회차 번호)끼리 묶었습니다. ') +
+    '묶음 안의 운행을 출발 시각순으로 가로로 놓았습니다. 바로 옆 칸이 앞차·뒷차입니다. 칸 위쪽은 그 정류장 도착 시각, 아래쪽은 선택한 보기 방식의 값입니다. ' +
+    '<b>빨강</b> = 앞차에 바짝 붙음(밀착), <b>주황</b> = 앞차와 너무 벌어짐(지연) — 기준은 사내 규정(평균 배차간격의 ' + (밀착_배수 * 100) + '% 미만 / ' + (지연_배수 * 100) + '% 초과)입니다. ' +
+    '숫자 끝의 <b>*</b>는 앞차가 다른 회차 묶음의 차라서 잰 간격이고, 휴식에 따른 출발 조정이 섞였을 수 있어 최소·최대에서는 뺐습니다. ' +
+    '휴게시간은 차량이 아니라 같은 기사의 앞 운행이 끝난 뒤 시간입니다. 잔류시간이 아주 짧으면 서지 않고 지나간 것일 수 있습니다. ' +
+    '<b>회색 열(BIS 기록 없음)</b>은 이 묶음에 있어야 할 기사의 운행이 BIS 자료에 없다는 표시입니다. 기사 ID가 비어 있거나 다른 번호로 기록됐을 수도 있으니 아래 운행 일람을 보세요.</p>' +
+    조절 + '<div class="gridscroll"><table class="gridtbl">' + 머리html + 줄html + '</table></div>' + 일람그리기(D);
+}
+
+// 결과 전체를 화면에 펼칩니다.
+function 보여주기(r) {
+  마지막결과 = r;
+  var 감시 = 감시목록();
+  var 첫날 = r.일별[0].날짜, 끝날 = r.일별[r.일별.length - 1].날짜;
+  var 선정 = r.회차기록.filter(function (x) { return x._선정; });
+  var 선정밀착 = 선정.filter(function (x) { return x._선정 === '밀착'; }).length;
+  var 선정지연 = 선정.length - 선정밀착;
+  var 예외 = r.회차기록.filter(function (x) { return String(x.결과).indexOf('예외') > 0; }).length;
+
+  $('title').textContent = r.노선 + ' · ' + (첫날 === 끝날 ? 날짜꼴(첫날) : 날짜꼴(첫날) + ' ~ ' + 날짜꼴(끝날)) + ' 요약';
+  $('cards').innerHTML =
+    카드(r.일별.length + '일', '분석한 날 수', '') +
+    카드(r.회차수 + '회', '총 운행 회차', '') +
+    카드(선정밀착 + '건', '밀착 선정', 선정밀착 ? 'warn' : 'ok') +
+    카드(선정지연 + '건', '지연 선정', 선정지연 ? 'warn' : 'ok') +
+    카드(예외 + '건', '예외 인정', '') +
+    카드(r.단말기.length + '회차', '단말기 점검 의심', r.단말기.length ? 'warn' : 'ok');
+  $('basis').textContent = '기준: 회차별 평균 배차간격의 ' + (밀착_배수 * 100) + '% 미만 = 밀착, ' + (지연_배수 * 100) + '% 초과 = 지연. 위반 정류장이 (운행차량 수별 비율 40~70% x 도착정류장 수)를 넘으면 선정.';
+
+  // ---- 한눈에 보기: 쉬운 말 요약 ----
+  var 줄 = [];
+  줄.push('이 기간 사내 규정으로 선정된 회차는 <b>' + 선정.length + '건</b>입니다. (밀착 ' + 선정밀착 + '건, 지연 ' + 선정지연 + '건' + (예외 ? ', 앞차 예외로 빠진 것 ' + 예외 + '건' : '') + ')');
+  // [v20261012-05] 묶음 방식을 바꾸면 선정 결과가 달라질 수 있어서, 반대 방식으로 계산한 건수를 참고로 보여줍니다.
+  if (대조선정) 줄.push('참고: ' + (r.방식 === '배차일보' ? '예전 방식(BIS 회차 번호)' : '배차일보 방식') + '으로 계산하면 선정은 <b>' + (대조선정.밀착 + 대조선정.지연) + '건</b>(밀착 ' + 대조선정.밀착 + ', 지연 ' + 대조선정.지연 + ')입니다. 지금 화면은 ' + (r.방식 === '배차일보' ? '배차일보 방식(기사의 n번째 운행 + 오전/오후 근무)' : 'BIS 회차 번호 방식') + '입니다.');
+  감시.forEach(function (id) {
+    var 내것 = r.회차기록.filter(function (x) { return x.사원ID === id; });
+    var 이름 = 이름맵[id] ? ' ' + 이름맵[id] : '';
+    if (!내것.length) { 줄.push('지켜볼 기사 <b>' + id + 이름 + '</b>: 이 파일에서 운행 기록을 찾지 못했습니다.'); return; }
+    var 선 = 내것.filter(function (x) { return x._선정; }).length;
+    var 최 = 내것.slice().sort(function (a, b) { return b._비율 - a._비율; })[0];
+    var 저녁합 = 내것.reduce(function (s, x) { return s + (x.저녁 ? x.밀착정류장 : 0); }, 0);
+    var 전체합 = 내것.reduce(function (s, x) { return s + x.밀착정류장; }, 0);
+    줄.push('지켜볼 기사 <b>' + id + 이름 + '</b>: 선정 ' + 선 + '건. 문턱에 가장 가까웠던 회차는 ' + 최.날짜.slice(4, 6) + '/' + 최.날짜.slice(6, 8) + ' ' + 최.출발 + ' 출발(' + 최.회차 + '회차), 문턱의 ' + Math.round(최._비율 * 100) + '%. 밀착 정류장 합계 ' + 전체합 + '곳 중 저녁(' + 저녁_시작_시 + '시~)이 ' + 저녁합 + '곳.');
+  });
+  $('easy').innerHTML = 줄.map(function (t) { return '<li>' + t + '</li>'; }).join('');
+
+  // ---- 표 만들기 ----
+  var 전체 = r.회차기록;
+  표데이터 = {
+    sel: 이름넣기(정리(전체.filter(function (x) { return x.결과 !== '정상'; }))),
+    watch: 이름넣기(정리(전체.filter(function (x) { return 감시.indexOf(x.사원ID) >= 0 && (x.지연정류장 > 0 || x.밀착정류장 > 0); })
+             .sort(function (a, b) { return a.사원ID < b.사원ID ? -1 : a.사원ID > b.사원ID ? 1 : (a.날짜 + a.출발) < (b.날짜 + b.출발) ? -1 : 1; }))),
+    기사: 이름넣기(r.기사), 일별: r.일별, 단말기: 이름넣기(r.단말기)
+  };
+  $('tables').innerHTML = 표목록.map(function (s, i) {
+    var 정렬칸 = s.키 === '기사' ? '<select id="sortsel" aria-label="정렬 기준"><option value="rule">정렬: 규정 기준(한 회차 최고)</option><option value="sum">정렬: 한 주 합계</option><option value="repeat">정렬: 반복(문턱 50% 이상 회차 수)</option></select> ' : '';
+    return '<div class="panel"><div class="head"><h2>' + s.제목 + '</h2><span>' + 정렬칸 + '<button class="ghost" data-copy="t' + i + '">표 복사</button></span></div>' +
+      '<p class="note">' + s.설명 + '</p><div class="scroll"><table id="t' + i + '">' + 표그리기(표데이터[s.키], s.색, s.칸) + '</table></div></div>';
+  }).join('');
+  비교패널그리기(r);
+  격자그리기();   // [v20261012-04] 회차 묶음 표
+  if (현재상세 && 현재상세.텍스트 === 마지막텍스트) 상세보기(현재상세.id, 현재상세.종류, 현재상세.키, true);
+  else { $('detailpanel').hidden = true; 현재상세 = null; }
+  카드그리기(r, 감시);
+  $('ver').textContent = VERSION;
+  $('out').hidden = false;
+  표복사연결();
+}
+
+// 계산을 다시 돌립니다. (파일을 올렸을 때, 기사 ID나 이름표를 바꿨을 때)
+function 실행(파일이름) {
+  if (!마지막텍스트) return;
+  try {
+    var 결과 = 점검(마지막텍스트);
+    // [v20261012-05] 반대 묶음 방식으로도 한 번 계산해 선정 건수만 대조용으로 보관합니다. (실패해도 본 결과에는 영향 없음)
+    대조선정 = null;
+    try {
+      var 다른 = 점검(마지막텍스트, 결과.방식 === '배차일보' ? 'BIS' : '배차일보');
+      var 대조목록 = 다른.회차기록.filter(function (x) { return x._선정; });
+      var 대조밀착 = 대조목록.filter(function (x) { return x._선정 === '밀착'; }).length;
+      대조선정 = { 밀착: 대조밀착, 지연: 대조목록.length - 대조밀착 };
+    } catch (e2) { 대조선정 = null; }
+    if (결과.노선 !== 현재노선) { 현재노선 = 결과.노선; 노선감시불러오기(); }   // 노선이 바뀌면 지켜볼 기사 목록도 그 노선 것으로 바뀝니다
+    보여주기(결과);
+    if (파일이름) $('msg').textContent = 파일이름 + ' 점검 완료';
+  } catch (e) {
+    $('out').hidden = true;
+    $('msg').textContent = '읽지 못했습니다: ' + e.message;
+  }
+}
+
+// CSV 파일을 읽습니다. utf-8로 먼저 시도하고, 깨지면 윈도우 한글(euc-kr/cp949)로 읽습니다.
+function 파일읽기(f) {
+  $('msg').textContent = '읽는 중...';
+  var fr = new FileReader();
+  fr.onload = function () {
+    var buf = new Uint8Array(fr.result), text;
+    try { text = new TextDecoder('utf-8', { fatal: true }).decode(buf); }
+    catch (e) { text = new TextDecoder('euc-kr').decode(buf); }
+    마지막텍스트 = text;
+    실행(f.name);
+  };
+  fr.readAsArrayBuffer(f);
+}
+
+// 이름표 엑셀을 읽습니다. '운전사ID'와 '이름'이라는 제목 칸을 찾아 ID → 이름 목록을 만듭니다.
+function 이름표읽기(f) {
+  if (!window.XLSX) { $('msg').textContent = '엑셀 도구를 불러오지 못했습니다. 인터넷 연결을 확인하세요.'; return; }
+  var fr = new FileReader();
+  fr.onload = function () {
+    try {
+      var wb = XLSX.read(fr.result, { type: 'array' });
+      var 줄들 = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' });
+      var h = -1, ci = -1, ni = -1;
+      for (var i = 0; i < 줄들.length && h < 0; i++) {
+        var a = 줄들[i].map(function (x) { return String(x).trim(); });
+        if (a.indexOf('운전사ID') >= 0 && a.indexOf('이름') >= 0) { h = i; ci = a.indexOf('운전사ID'); ni = a.indexOf('이름'); }
+      }
+      if (h < 0) throw new Error("'운전사ID'와 '이름' 제목 칸을 찾지 못했습니다.");
+      이름맵 = {};
+      for (var j = h + 1; j < 줄들.length; j++) {
+        var id = String(줄들[j][ci]).trim(), nm = String(줄들[j][ni]).trim();
+        // [v20261012-04] 엑셀이 앞의 0을 지운 번호(예: 8924)를 6자리(008924)로 맞춥니다.
+        id = 여섯자리(id);
+        if (id && nm) 이름맵[id] = nm;
+      }
+      var 저장됨 = 저장쓰기(이름표_열쇠, { 맵: 이름맵, 날짜: new Date().toISOString().slice(0, 10), 파일: f.name });
+      $('msg').textContent = '이름표 ' + Object.keys(이름맵).length + '명을 읽었습니다.' + (저장됨 ? ' 이 컴퓨터에 저장했습니다.' : ' (이 브라우저에서는 저장되지 않았습니다. 다음에도 다시 올려야 합니다.)');
+      이름표상태표시();
+      실행();
+    } catch (e) { $('msg').textContent = '이름표를 읽지 못했습니다: ' + e.message; }
+  };
+  fr.readAsArrayBuffer(f);
+}
+
+$('file').addEventListener('change', function (e) { if (e.target.files[0]) 파일읽기(e.target.files[0]); });
+$('namefile').addEventListener('change', function (e) { if (e.target.files[0]) 이름표읽기(e.target.files[0]); });
+var 감시지연 = null;
+$('watch').addEventListener('change', function () { 노선감시저장(); clearTimeout(감시지연); 감시지연 = setTimeout(function () { 실행(); }, 350); });   // 입력칸에서 빠져나오며 바로 누른 클릭이 사라지지 않도록 0.35초 뒤에 다시 그립니다
+$('nameclear').addEventListener('click', function () { 이름맵 = {}; 저장지우기(이름표_열쇠); 이름표상태표시(); $('msg').textContent = '저장된 이름표를 지웠습니다.'; 실행(); });
+저장된것불러오기();   // 화면을 열자마자 저장된 이름표와 기사 ID를 불러옵니다
+카드칸연결();
+// 파란 글씨 숫자(data-detail)를 누르면 정류장 상세를, 정렬 선택을 바꾸면 기사표를 다시 정렬합니다. (화면 어디에 있든 동작하도록 문서 전체에서 받습니다)
+document.addEventListener('click', function (e) {
+  var t = e.target.closest ? e.target.closest('[data-detail]') : null;
+  if (t) { var p = t.getAttribute('data-detail').split('|'); 상세보기(p[0], p[1], p.slice(2).join('|')); return; }
+  if (e.target.id === 'detailclose') { $('detailpanel').hidden = true; 현재상세 = null; }
+  if (e.target.id === 'detailcopy' && $('tdetail')) {
+    var tsv = Array.prototype.map.call($('tdetail').rows, function (tr) { return Array.prototype.map.call(tr.cells, function (c) { return c.textContent; }).join('\t'); }).join('\n');
+    if (navigator.clipboard) navigator.clipboard.writeText(tsv).then(function () { e.target.textContent = '복사됨'; setTimeout(function () { e.target.textContent = '표 복사'; }, 1500); });
+  }
+});
+document.addEventListener('change', function (e) { if (e.target.id === 'sortsel') 기사정렬(e.target.value); });
+// [v20261012-04] 회차 묶음 표의 날짜 선택 / 회차 버튼 / 보기 방식 버튼
+// [v20261012-06] 운행 일람을 열어 둔 상태를 기억합니다. (표가 다시 그려져도 다시 접히지 않도록)
+document.addEventListener('toggle', function (e) { if (e.target.classList && e.target.classList.contains('roster')) 격자상태.일람열림 = e.target.open; }, true);
+document.addEventListener('change', function (e) { if (e.target.id === 'gridday') { 격자상태.날짜 = e.target.value; 격자상태.회차 = 0; 격자그리기(); } });
+document.addEventListener('click', function (e) {
+  var t = e.target.closest ? e.target.closest('[data-grid]') : null;
+  if (!t) return;
+  var p = t.getAttribute('data-grid').split('|');
+  if (p[0] === 'turn') 격자상태.회차 = +p[1];
+  if (p[0] === 'mode') 격자상태.모드 = p[1];
+  격자그리기();
+});
+// 인쇄: 체크된 기사를 목록에 나온 순서대로 한 장씩 인쇄합니다.
+$('printall').addEventListener('click', function () {
+  var ids = []; document.querySelectorAll('#cardsec input[data-id]:checked').forEach(function (c) { ids.push(c.getAttribute('data-id')); });
+  if (ids.length) 인쇄하기(ids);
+});
+var drop = $('drop');
+['dragenter', 'dragover'].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add('over'); }); });
+['dragleave', 'drop'].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove('over'); }); });
+drop.addEventListener('drop', function (e) { if (e.dataTransfer.files[0]) 파일읽기(e.dataTransfer.files[0]); });
+drop.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('file').click(); } });
+
+// '표 복사' 버튼: 표를 탭으로 구분한 글자로 복사 → 엑셀에 붙여넣으면 칸이 맞춰 들어갑니다.
+function 표복사연결() {
+  document.querySelectorAll('[data-copy]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var tsv = Array.prototype.map.call($(b.dataset.copy).rows, function (tr) {
+        return Array.prototype.map.call(tr.cells, function (c) { return c.textContent; }).join('\t');
+      }).join('\n');
+      var 완료 = function () { b.textContent = '복사됨'; setTimeout(function () { b.textContent = '표 복사'; }, 1500); };
+      var 대체 = function () { var ta = document.createElement('textarea'); ta.value = tsv; document.body.appendChild(ta); ta.select();
+        try { document.execCommand('copy'); 완료(); } catch (e) {} document.body.removeChild(ta); };
+      if (navigator.clipboard) navigator.clipboard.writeText(tsv).then(완료, 대체); else 대체();
+    });
+  });
+}
+
+// ---------- [v20261012-08] 엑셀 저장: 화면의 '회차 묶음 표'를 날짜별 시트로 그대로 담습니다 ----------
+// 쉬운 설명: 예전에는 요약 표만 저장했습니다. 이제 요약 시트 뒤에, 날짜마다
+//   (1) 상세_날짜 시트 = 회차 묶음 표 (정류장마다 도착시각 / 앞차와 간격 / 구간 운행 / 잔류, 밀착=빨강·지연=주황)
+//   (2) 일람_날짜 시트 = 그날 전체 운행 일람 (확인이 필요한 줄은 노란색)
+// 이 들어갑니다. 시간 칸은 엑셀의 '시간 값'으로 넣어서 정렬·계산이 됩니다.
+var 색 = { 머리: 'FF1F3A4D', 밀착: 'FFF8D7DA', 지연: 'FFFFE0B2', 회색: 'FFE0E0E0', 노랑: 'FFFFF4C2', 소제목: 'FFDCE8F0' };
+function 칠하기(cell, argb) { cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: argb } }; }
+function 테두리(cell) { var l = { style: 'thin', color: { argb: 'FFBBBBBB' } }; cell.border = { top: l, left: l, bottom: l, right: l }; }
+function 시간값(초) { return 초 == null ? null : 초 / 86400; }   // 엑셀의 시간 값은 '하루 = 1' 입니다
+
+function 상세시트(wb, 날짜) {
+  var D = 마지막결과.격자[날짜];
+  var ws = wb.addWorksheet('상세_' + 날짜.slice(4, 6) + '-' + 날짜.slice(6, 8) + '(' + D.요일 + ')');
+  var 회차들 = [], 이름 = {};
+  D.열.forEach(function (c) { if (회차들.indexOf(c.묶음) < 0) 회차들.push(c.묶음); 이름[c.묶음] = c.묶음이름; });
+  회차들.sort(function (a, b) { return a - b; });
+  ws.getColumn(1).width = 28; ws.getColumn(2).width = 13;
+  var r = 1;
+  ws.getCell(r, 1).value = 마지막결과.노선 + ' ' + 날짜꼴(날짜) + ' (' + D.요일 + ')  회차 묶음 상세 — 문턱 ' + D.문턱 + '곳';
+  ws.getCell(r, 1).font = { bold: true, size: 13 }; r++;
+  ws.getCell(r, 1).value = '빨강=앞차에 바짝 붙음(밀착), 주황=앞차와 너무 벌어짐(지연), 기울임 회색=앞차가 다른 묶음 차라서 잰 간격(경계). 회색 열=BIS 기록 없음.';
+  ws.getCell(r, 1).font = { italic: true, color: { argb: 'FF555555' } }; r += 2;
+
+  회차들.forEach(function (g) {
+    var 열들 = D.열.filter(function (c) { return c.묶음 === g; }).sort(function (a, b) { return (a.시작 || 0) - (b.시작 || 0); });
+    var 빈열 = (D.빠짐 || []).filter(function (b) { return b.번호 === g; });
+    var n = 열들.length, 첫 = 3, 끝1 = 첫 + n + 빈열.length, 끝2 = 끝1 + 1;
+    열들.concat(빈열).forEach(function (_, i) { ws.getColumn(첫 + i).width = 12; });
+    ws.getColumn(끝1).width = 20; ws.getColumn(끝2).width = 20;
+    // 묶음 제목 줄
+    ws.getCell(r, 1).value = 이름[g] + '  (운행 ' + n + '건' + (빈열.length ? ', 기록 없음 ' + 빈열.length + '건' : '') + ')';
+    for (var c0 = 1; c0 <= 끝2; c0++) { 칠하기(ws.getCell(r, c0), 색.머리); }
+    ws.getCell(r, 1).font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 12 }; r++;
+    // 머리 줄 8개
+    var 머리 = [
+      ['운행 순서', function (c, i) { return i + 1; }, null],
+      ['차량', function (c) { return c.차량.replace('경기', ''); }, null],
+      ['기사', function (c) { return 기사이름(c.사원); }, null],
+      ['출발', function (c) { return 시간값(c.시작); }, 'h:mm:ss'],
+      ['기준(평균 배차간격, 분)', function (c) { return c.기준; }, '0.0'],
+      ['간격이상 (이상 / 잰 곳)', function (c) { return c.이상 + ' / ' + c.측정; }, null],
+      ['총운행시간', function (c) { return (c.시작 == null || c.종료 == null) ? null : 시간값(c.종료 - c.시작); }, '[h]:mm:ss'],
+      ['휴게시간 (같은 기사 앞 운행 뒤)', function (c) { return c.휴게 == null ? null : 시간값(c.휴게); }, '[h]:mm:ss']
+    ];
+    머리.forEach(function (h, ri) {
+      ws.mergeCells(r, 1, r, 2);
+      var lab = ws.getCell(r, 1); lab.value = h[0]; lab.font = { bold: true }; 칠하기(lab, 색.소제목); 테두리(lab);
+      열들.forEach(function (c, i) {
+        var cell = ws.getCell(r, 첫 + i); cell.value = h[1](c, i);
+        if (h[2]) cell.numFmt = h[2];
+        cell.alignment = { horizontal: 'center' }; cell.font = { bold: true }; 테두리(cell);
+        if (ri === 5 && c.이상 > D.문턱) 칠하기(cell, 색.밀착);   // 문턱을 넘은 운행은 빨강
+      });
+      빈열.forEach(function (b, j) {
+        var cell = ws.getCell(r, 첫 + n + j);
+        cell.value = ri === 2 ? 기사이름(b.사원) : (ri === 3 ? 'BIS 기록 없음' : null);
+        칠하기(cell, 색.회색); cell.alignment = { horizontal: 'center' }; 테두리(cell);
+      });
+      r++;
+    });
+    // 오른쪽 끝 제목(최소·최대 간격)
+    ws.getCell(r - 8, 끝1).value = '최소 간격 · 그 시각'; ws.getCell(r - 8, 끝2).value = '최대 간격 · 그 시각';
+    [끝1, 끝2].forEach(function (cc) { var x = ws.getCell(r - 8, cc); x.font = { bold: true }; 칠하기(x, 색.소제목); x.alignment = { horizontal: 'center' }; 테두리(x); });
+
+    // 정류장마다 4줄: 도착 / 앞차와 간격 / 구간 운행 / 잔류
+    var 이름들 = ['도착', '앞차와 간격', '구간 운행', '잔류'];
+    D.정류장.forEach(function (정류장, si) {
+      var mn = null, mx = null;
+      ws.mergeCells(r, 1, r + 3, 1);
+      var nm = ws.getCell(r, 1); nm.value = (si + 1) + ' ' + 정류장; nm.alignment = { vertical: 'middle', wrapText: true }; nm.font = { bold: true }; 테두리(nm);
+      for (var k = 0; k < 4; k++) { var lb = ws.getCell(r + k, 2); lb.value = 이름들[k]; lb.font = { color: { argb: 'FF555555' } }; 테두리(lb); }
+      열들.forEach(function (c, i) {
+        var x = c.칸[si];
+        for (var k2 = 0; k2 < 4; k2++) { var e = ws.getCell(r + k2, 첫 + i); 테두리(e); e.alignment = { horizontal: 'center' }; }
+        if (!x) return;
+        var v1 = ws.getCell(r, 첫 + i); v1.value = 시간값(x.통과); v1.numFmt = 'h:mm:ss'; v1.font = { bold: true };
+        var v2 = ws.getCell(r + 1, 첫 + i);
+        if (x.간격 != null) {
+          v2.value = 시간값(x.간격 * 60); v2.numFmt = '[m]:ss';
+          if (x.경계) v2.font = { italic: true, color: { argb: 'FF888888' } };
+          else if (x.종류 === '밀착') { 칠하기(v2, 색.밀착); v2.font = { bold: true, color: { argb: 'FFB00020' } }; }
+          else if (x.종류 === '지연') { 칠하기(v2, 색.지연); v2.font = { bold: true, color: { argb: 'FFB45309' } }; }
+          if (!x.경계) { if (mn == null || x.간격 < mn.간격) mn = x; if (mx == null || x.간격 > mx.간격) mx = x; }
+        }
+        var v3 = ws.getCell(r + 2, 첫 + i); if (x.구간 != null) { v3.value = 시간값(x.구간); v3.numFmt = '[m]:ss'; }
+        var v4 = ws.getCell(r + 3, 첫 + i); if (x.잔류 != null) { v4.value = 시간값(x.잔류); v4.numFmt = '[m]:ss'; }
+      });
+      빈열.forEach(function (b, j) { for (var k3 = 0; k3 < 4; k3++) { var e2 = ws.getCell(r + k3, 첫 + n + j); 칠하기(e2, 색.회색); 테두리(e2); } });
+      [[끝1, mn], [끝2, mx]].forEach(function (p) {
+        var cell = ws.getCell(r + 1, p[0]); cell.value = p[1] ? 분글자(p[1].간격) + ' · ' + 시각초(p[1].통과) : null;
+        cell.alignment = { horizontal: 'center' }; 테두리(cell);
+      });
+      r += 4;
+    });
+    r += 2;   // 묶음 사이 빈 줄
+  });
+  ws.views = [{ state: 'frozen', xSplit: 2, ySplit: 0 }];
+}
+
+function 일람시트(wb, 날짜) {
+  var D = 마지막결과.격자[날짜];
+  var ws = wb.addWorksheet('일람_' + 날짜.slice(4, 6) + '-' + 날짜.slice(6, 8));
+  var 제목 = ['번호', '출발', '종료', '차량', '기사', '기사 ID', 'BIS 회차', '묶음', '검지 수', '확인할 점'], 폭 = [6, 10, 10, 10, 12, 10, 9, 14, 9, 60];
+  ws.addRow(제목).eachCell(function (c, i) { c.font = { bold: true, color: { argb: 'FFFFFFFF' } }; 칠하기(c, 색.머리); ws.getColumn(i).width = 폭[i - 1]; });
+  var 이름표있음 = Object.keys(이름맵).length > 0;
+  D.일람.forEach(function (x, i) {
+    var 확인 = x.확인.slice();
+    if (이름표있음 && x.사원 && !이름맵[x.사원]) 확인.push('이름표에 없는 ID');
+    var row = ws.addRow([i + 1, 시간값(x.시작), 시간값(x.종료), x.차량.replace('경기', ''), x.사원 === '' ? '(없음)' : 기사이름(x.사원), x.사원, x.BIS회차, x.묶음이름, x.검지수, 확인.join(' · ')]);
+    row.getCell(2).numFmt = 'h:mm:ss'; row.getCell(3).numFmt = 'h:mm:ss';
+    if (확인.length) row.eachCell(function (c) { 칠하기(c, 색.노랑); });
+  });
+  ws.views = [{ state: 'frozen', ySplit: 1 }];
+}
+
+// 엑셀 통(workbook)을 만듭니다. (저장 단추와 시험에서 함께 씁니다)
+function 엑셀만들기() {
+  var wb = new ExcelJS.Workbook();
+  // 1) 예전처럼 요약 표 시트들
+  표목록.forEach(function (s) {
+    var rows = 표데이터[s.키], ws = wb.addWorksheet(s.제목.replace(/[\\\/\?\*\[\]:]/g, ' ').slice(0, 30));
+    if (!rows.length) { ws.addRow(['해당 없음']); return; }
+    var 칸이름 = Object.keys(rows[0]);
+    ws.addRow(칸이름).eachCell(function (c) { c.font = { bold: true, color: { argb: 'FFFFFFFF' } }; 칠하기(c, 색.머리); });
+    rows.forEach(function (o) { ws.addRow(칸이름.map(function (k) { var v = o[k]; return (v !== null && typeof v === 'object') ? JSON.stringify(v) : v; })); });
+    칸이름.forEach(function (k, i) {
+      var w = k.length; rows.forEach(function (o) { w = Math.max(w, String(o[k] == null ? '' : o[k]).length); });
+      ws.getColumn(i + 1).width = Math.min(w + 3, 36);
+    });
+    ws.views = [{ state: 'frozen', ySplit: 1 }];
+  });
+  // 2) 날짜마다 상세 + 일람 시트
+  마지막결과.일별.forEach(function (d) { if (마지막결과.격자 && 마지막결과.격자[d.날짜]) { 상세시트(wb, d.날짜); 일람시트(wb, d.날짜); } });
+  return wb;
+}
+
+// '엑셀 파일로 저장' 버튼: 내 컴퓨터에서 직접 연 파일에서 동작합니다.
+$('xlsx').addEventListener('click', function () {
+  if (!마지막결과) return;
+  var 일 = 마지막결과.일별, 파일명 = '운행점검_' + 마지막결과.노선 + '_' + 일[0].날짜 + '-' + 일[일.length - 1].날짜 + '.xlsx';
+  if (!window.ExcelJS) { $('msg').textContent = '엑셀 도구를 불러오지 못했습니다. 인터넷 연결을 확인하세요.'; return; }
+  엑셀만들기().xlsx.writeBuffer().then(function (buf) {
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+    a.download = 파일명; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
+  });
+});
+</script>
+</body>
+</html>
