@@ -193,7 +193,8 @@ button.small{padding:5px 12px;font-size:.9rem}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script>
 // =====================================================================
-// 운행기록 점검기 (사내규정판)   버전: v20261012-13   ← 날짜-일련번호
+// 운행기록 점검기 (사내규정판)   버전: v20261012-14   ← 날짜-일련번호
+// [v20261012-14 변경] 엑셀에서 다시 저장한 CSV도 읽도록: 칸 구분(; 탭), 시각 모양('5:03', 오전/오후, 소수), 날짜 모양, 잘린 줄 처리. 못 읽을 때 원인 안내 추가.
 // [v20261012-13 변경] 첫 화면 정리: 올리기 전에는 빈 결과 칸이 안 보이게(hidden 수정), 이름표 줄 배치 정돈, 작은 단추.
 // [v20261012-12 변경] 버전을 화면 맨 위(제목 옆)와 브라우저 탭 이름에 항상 표시.
 // [v20261012-11 변경] 이름표를 회사 ERP txt(세미콜론 구분)로 바로 올릴 수 있음. 운전사ID·이름·부서만 읽고 주민번호 등은 읽지 않음.
@@ -224,7 +225,7 @@ button.small{padding:5px 12px;font-size:.9rem}
 //  5) 예외: 내가 '밀착'인데 내 앞차가 '지연' 선정이면, 또는 내가 '지연'인데 앞차가
 //     '밀착' 선정이면 선정에서 빼줍니다(예외 인정).
 // =====================================================================
-var VERSION = 'v20261012-13';
+var VERSION = 'v20261012-14';
 
 // ---------- [기준값] 여기 숫자만 바꾸면 점검이 더 엄격/느슨해집니다 ----------
 var 지연_배수 = 1.7;          // 기준의 1.7배 초과면 '지연 정류장'
@@ -251,9 +252,19 @@ function 선정비율(차량수) {
 // '06:31:17' 글자를 '0시부터 몇 초'인 숫자로 바꿉니다. 빈칸이면 null(없음).
 function 초로(t) {
   t = String(t == null ? '' : t).trim();
-  if (t === '' || t.indexOf(':') < 0) return null;
-  var p = t.split(':');
-  return (+p[0]) * 3600 + (+p[1]) * 60 + (+p[2]);
+  if (t === '') return null;
+  // [v20261012-14] 엑셀에서 다시 저장하면 시각 모양이 바뀔 수 있어 아래 경우를 모두 읽습니다.
+  //   '5:03'(초 없음) / '오전 5:03:00', 'AM 5:03:00', '5:03:00 PM' / 소수(0.2104 = 하루 중 위치)
+  var 오후 = /오후|PM/i.test(t), 오전 = /오전|AM/i.test(t);
+  t = t.replace(/오전|오후|AM|PM/gi, '').trim();
+  if (t.indexOf(':') < 0) {
+    var f = parseFloat(t);                       // 소수로 저장된 시각(0 이상 1 미만)
+    return (isFinite(f) && f >= 0 && f < 1 && /^[0-9.]+$/.test(t)) ? Math.round(f * 86400) : null;
+  }
+  var p = t.split(':'), h = +p[0];
+  if (오후 && h < 12) h += 12;
+  if (오전 && h === 12) h = 0;
+  return h * 3600 + (+p[1] || 0) * 60 + (+p[2] || 0);   // 초가 없으면 0초로 봅니다
 }
 // 초 숫자를 다시 '06:31' 글자로 바꿉니다. (24시 넘으면 24시간을 뺍니다)
 function 시각글자(sec) {
@@ -276,12 +287,16 @@ function 요일(d) {
 }
 // CSV 글자 덩어리를 '줄 x 칸' 표로 나눕니다. (따옴표 안의 쉼표도 처리)
 function 표로(text) {
+  // [v20261012-14] 엑셀에서 다시 저장한 파일은 칸 구분이 쉼표(,) 대신 세미콜론(;)이나 탭일 수 있습니다. 첫 줄에서 가장 많이 나온 글자를 구분으로 씁니다.
+  var 첫줄 = text.split('\n')[0], 구분 = ',';
+  if ((첫줄.match(/;/g) || []).length > (첫줄.match(/,/g) || []).length) 구분 = ';';
+  if ((첫줄.match(/\t/g) || []).length > (첫줄.match(구분 === ',' ? /,/g : /;/g) || []).length) 구분 = '\t';
   var rows = [], row = [], cur = '', q = false;
   for (var i = 0; i < text.length; i++) {
     var c = text[i];
     if (q) { if (c === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += c; }
     else if (c === '"') q = true;
-    else if (c === ',') { row.push(cur); cur = ''; }
+    else if (c === 구분) { row.push(cur); cur = ''; }
     else if (c === '\n') { row.push(cur); rows.push(row); row = []; cur = ''; }
     else if (c !== '\r') cur += c;
   }
@@ -303,6 +318,13 @@ function 하루씩(rows) {
   return 시작.map(function (a, i) { return rows.slice(a, i + 1 < 시작.length ? 시작[i + 1] : rows.length); });
 }
 
+// [v20261012-14] 날짜를 '20261005' 모양(숫자 8자리)으로 맞춥니다. 엑셀이 '2026-10-05', '2026/10/5', '2026-10-05 0:00' 로 바꿔도 읽습니다.
+function 날짜정리(v) {
+  var t = String(v == null ? '' : v).trim();
+  var m = t.match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);
+  if (m) return m[1] + m[2].padStart(2, '0') + m[3].padStart(2, '0');
+  return t.replace(/\D/g, '').slice(0, 8);
+}
 // 하루치 줄들을 '회차 정보'와 '정류소 통과 시각'으로 나눕니다.
 function 하루해석(rows) {
   // 위쪽 정보줄: 4번째 칸의 이름(예: '버스번호▶')을 열쇠로 값 목록을 찾습니다.
@@ -311,7 +333,7 @@ function 하루해석(rows) {
     var r = rows[i];
     if (r.length > 4 && r[3].trim()) 헤더[r[3].trim()] = r.slice(4);
   }
-  if (!헤더['버스번호▶'] || !헤더['운행사원ID▶'] || !헤더['운행회차▶']) throw new Error('BIS 운행기록 파일 모양이 아닙니다.');
+  if (!헤더['버스번호▶'] || !헤더['운행사원ID▶'] || !헤더['운행회차▶']) throw new Error('BIS 운행기록 파일 모양이 아닙니다. (윗부분에서 찾은 항목: ' + (Object.keys(헤더).slice(0, 6).join(' / ') || '없음') + ' — 엑셀에서 바꿔 저장한 파일이면 원본 CSV를 올려 보세요)');
   var n = 헤더['버스번호▶'].length, trips = [];
   for (var k = 0; k < n; k++) {
     trips.push({
@@ -327,7 +349,8 @@ function 하루해석(rows) {
   var stops = [];
   for (var j = start; j < rows.length; j++) {
     var q = rows[j];
-    if (q.length < 4 + n || !q[1].trim()) continue;
+    if (q.length < 5 || !(q[1] || '').trim()) continue;
+    while (q.length < 4 + n) q.push('');   // [v14] 끝칸이 잘린 줄은 빈칸으로 채웁니다
     stops.push({ 구분: q[2].trim(), 이름: q[3].trim(), 시각: q.slice(4, 4 + n).map(초로) });
   }
   // 자정(00시)을 넘으면 시각이 갑자기 작아집니다. 그때 하루(86400초)를 더해 이어 붙입니다.
@@ -347,7 +370,7 @@ function 하루해석(rows) {
     if (m + 1 < stops.length && stops[m + 1].구분 === '출발' && stops[m + 1].이름 === stops[m].이름) stops[m].출발시각 = stops[m + 1].시각;
     if (m > 0 && stops[m - 1].구분 === '출발') stops[m].직전출발 = stops[m - 1].시각;
   }
-  return { 날짜: rows[0][1].trim(), 노선: rows[1][1].trim(), trips: trips, stops: stops };
+  return { 날짜: 날짜정리(rows[0][1]), 노선: rows[1][1].trim(), trips: trips, stops: stops };
 }
 
 // 객체 안에서 '가장 많이 나온 열쇠'를 찾습니다. (가장 자주 붙었던 앞차 찾기용)
@@ -375,7 +398,7 @@ function 점검(text, 방식) {
   방식 = 방식 || 묶음방식_기본;           // '배차일보' 또는 'BIS'
   var 제외초 = 방식 === '배차일보' ? 기준제외_배차일보_초 : 기준제외_시간_초;
   var 날들 = 하루씩(표로(text));
-  if (!날들.length) throw new Error('BIS 운행기록 파일 모양이 아닙니다.');
+  if (!날들.length) throw new Error('BIS 운행기록 파일 모양이 아닙니다. (윗부분에서 찾은 항목: ' + (Object.keys(헤더).slice(0, 6).join(' / ') || '없음') + ' — 엑셀에서 바꿔 저장한 파일이면 원본 CSV를 올려 보세요)');
   var 일별 = [], 회차기록 = [], 노선 = '';
   var 격자맵 = {};   // [v20261012-04] 날짜 → '회차 묶음 표'를 그리는 데 필요한 모든 숫자
 
