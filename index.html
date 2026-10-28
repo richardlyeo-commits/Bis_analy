@@ -1,10 +1,10 @@
 <!doctype html>
-<!-- ★ 프로그램 버전: v20261027-02  (파일 이름의 번호와 같습니다) -->
+<!-- ★ 프로그램 버전: v20261028-01  (파일 이름의 번호와 같습니다) -->
 <html lang="ko">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="program-version" content="v20261027-02">
+<meta name="program-version" content="v20261028-01">
 <title>운행기록 점검기 (사내규정판)</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap">
 <style>
@@ -195,8 +195,8 @@ button.small{padding:5px 12px;font-size:.9rem}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script>
 // =====================================================================
-// 운행기록 점검기 (사내규정판)   버전: v20261027-02   ← 날짜-일련번호
-// [v20261027-02 변경] 암호 최소 길이 10자 → 4자리로 완화(10자 미만이면 위험 안내 후 확인). 나머지는 그대로.
+// 운행기록 점검기 (사내규정판)   버전: v20261028-01   ← 날짜-일련번호
+// [v20261028-01 변경] 암호 최소 길이 10자 → 4자리로 완화(10자 미만이면 위험 안내 후 확인). 나머지는 그대로.
 // [v20261027-01 변경] 기사 ID가 비었거나 000000인 운행을 따로 찾아 보여 주는 칸, 모든 단추·머리글에 마우스 설명(도움말) 추가. 선정 계산 방식은 그대로.
 // [v20261016-01 변경] 이름표에 없는 기사 ID에 이름을 직접 적어 저장하는 칸 추가 (맨 아래 '이름 직접 입력' 부분). 계산 방식은 그대로.
 // [v20261012-17 변경] 화면·엑셀의 '문턱'이라는 말을 '위반한도'로 바꿈 (계산 방식은 그대로).
@@ -1359,7 +1359,7 @@ $('namelock').addEventListener('click', function () {
   if (!Object.keys(이름맵).length) { $('msg').textContent = '먼저 이름표 엑셀을 올려 주세요.'; return; }
   var 암호 = window.prompt('이름표를 잠글 암호를 정하세요. (4자리 이상. 길수록 안전합니다. 잊으면 복구할 수 없으니 따로 적어 두세요)');
   if (!암호) return;
-  // [v20261027-02] 소장님 결정으로 최소 4자리까지 허용. 대신 10자 미만이면 위험을 알리고 한 번 더 묻습니다.
+  // [v20261028-01] 소장님 결정으로 최소 4자리까지 허용. 대신 10자 미만이면 위험을 알리고 한 번 더 묻습니다.
   if (암호.length < 4) { $('msg').textContent = '암호가 너무 짧습니다. 4자리 이상으로 정해 주세요.'; return; }
   if (암호.length < 10 && !window.confirm('암호가 ' + 암호.length + '자리로 짧습니다.\n\n이 파일(names.enc.json)을 인터넷(GitHub 등)에 공개하면, 누군가 몇 분 안에 암호를 알아내 기사 이름과 ID를 볼 수 있습니다.\n\n· 파일을 인터넷에 올리지 않고 이 PC에서만 쓴다면 괜찮습니다.\n· 인터넷에 올릴 거라면 10자 이상을 권합니다.\n\n그래도 이 암호로 만들까요?')) return;
   $('msg').textContent = '잠그는 중입니다…';
@@ -1910,7 +1910,6 @@ new MutationObserver(function () { clearTimeout(설명대기); 설명대기 = se
   .observe(document.body, { childList: true, subtree: true });
 설명붙이기();
 
-</script>
 
   // =====================================================================
 // [v20261028-01 추가] 올려 둔 노선 바꿔보기 (드롭다운)
@@ -1961,6 +1960,7 @@ $('routesel').addEventListener('change', function () {
   마지막텍스트 = 글;                                      // 지금 보는 글자를 그 노선 것으로 바꾸고
   실행();                                                // 다시 계산해서 화면을 그립니다
 });
-    
+    </script>
+
 </body>
 </html>
