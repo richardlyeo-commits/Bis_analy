@@ -1,10 +1,10 @@
 <!doctype html>
-<!-- ★ 프로그램 버전: v20261107-13  (파일 이름의 번호와 같습니다) -->
+<!-- ★ 프로그램 버전: v20261107-15  (파일 이름의 번호와 같습니다) -->
 <html lang="ko">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="program-version" content="v20261107-13">
+<meta name="program-version" content="v20261107-15">
 <title>운행기록 점검기 (사내규정판)</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap">
 <style>
@@ -55,7 +55,7 @@ button:focus-visible,.drop:focus-visible,input:focus-visible{outline:3px solid v
 .scroll{overflow-x:auto;max-height:70vh}
 table{border-collapse:collapse;width:100%;font-size:.95rem;font-variant-numeric:tabular-nums}
 th,td{border-bottom:1px solid var(--line);padding:6px 10px;text-align:left;white-space:nowrap}
-th{position:sticky;top:0;background:var(--panel)}
+th{position:sticky;top:0;background:var(--panel);white-space:normal;vertical-align:bottom;line-height:1.35}   /* [v20261107-15] 머리글 글자가 많으면 줄을 바꿔 세로로도 적습니다 */
 tr.bad td{background:var(--warn-bg)}   /* 선정된 회차: 주황색 */
 tr.mid td{background:var(--mid-bg)}    /* 선정은 아니지만 위반한도의 절반 이상: 노란색 */
 .note{color:var(--muted);font-size:.9rem;margin:0 0 8px}
@@ -169,6 +169,7 @@ button.sig:hover{filter:brightness(.97)}
 /* [v20261107-09] 시간대 히트맵 */
 table.heat{width:auto;border-collapse:separate;border-spacing:2px}
 table.heat th,table.heat td{border:0;padding:4px 6px;text-align:center;font-size:.9rem}
+table.heat th{white-space:nowrap}   /* [v20261107-15] 히트맵 머리글은 한 줄 유지 */
 table.heat th.hl{text-align:left;position:sticky;left:0;background:var(--panel)}   /* 날짜 칸은 옆으로 넘겨도 고정 */
 table.heat td.hc{min-width:48px;border:1px solid var(--line);cursor:pointer;color:var(--fg)}
 table.heat td.hc.empty{background:transparent;border-style:dashed;cursor:default}
@@ -277,7 +278,9 @@ details.fold[open]>summary{margin-bottom:10px}               /* 펼쳤을 때 �
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script>
 // =====================================================================
-// 운행기록 점검기 (사내규정판)   버전: v20261107-13   ← 날짜-일련번호
+// 운행기록 점검기 (사내규정판)   버전: v20261107-15   ← 날짜-일련번호
+// [v20261107-15 변경] 표 머리글(메뉴) 글자가 많으면 한 줄로만 늘어놓지 않고 줄을 바꿔 세로로도 적음(CSS만 수정). 선정 계산 방식은 그대로.
+// [v20261107-14 변경] 지연·밀착 정류장 상세 표: '평균 배차간격(분)' 칸 추가, 안내문을 밀착/지연에 맞게 구분, 마우스 설명 2곳(앞차와 간격·기준선) 수정. 선정 계산 방식은 그대로.
 // [v20261107-13 변경] 새로 만든 메뉴·단추·접는 칸 제목·히트맵 머리글과, 원래 설명이 없던 ②③ 칸·기사 찾기·노선 바꿔보기·카드 표 머리글에 마우스 설명 추가. 계산 방식은 그대로.
 // [v20261107-12 변경] 간격 그래프 말풍선: 브라우저 기본 말풍선(1초 대기, 터치 안 됨) 대신 마우스를 올리는 즉시 뜨고 따라다니는 말풍선으로. 손가락으로 눌러도 뜸. 계산 방식은 그대로.
 // [v20261107-11 변경] 기사별 막대: 가장 심했던 회차가 밀착(▼)인지 지연(■)인지 글자로 표시, 막대에 마우스를 올리면 그 회차와 밀착·지연 최고 %를 따로 보여 줌. 오른쪽 글자 잘림 고침. 계산 방식은 그대로.
@@ -328,7 +331,7 @@ details.fold[open]>summary{margin-bottom:10px}               /* 펼쳤을 때 �
 //  5) 예외: 내가 '밀착'인데 내 앞차가 '지연' 선정이면, 또는 내가 '지연'인데 앞차가
 //     '밀착' 선정이면 선정에서 빼줍니다(예외 인정).
 // =====================================================================
-var VERSION = 'v20261107-13';
+var VERSION = 'v20261107-15';
 
 // ---------- [기준값] 여기 숫자만 바꾸면 점검이 더 엄격/느슨해집니다 ----------
 var 지연_배수 = 1.7;          // 기준의 1.7배 초과면 '지연 정류장'
@@ -1310,7 +1313,7 @@ function 상세보기(id, 종류, 키, 스크롤안함) {
     요약.push('<li><b>' + 날짜짧게(x.날짜) + ' ' + x.요일 + ' ' + x.출발 + ' 출발</b> (' + x.회차 + '회차) · ' + 목록.length + '곳 · 정류장 ' + 구간글자(목록.map(function (d) { return d.순번; })) + '</li>');
     목록.forEach(function (d) {
       줄.push('<tr><td>' + 날짜짧게(x.날짜) + '</td><td>' + x.요일 + '</td><td>' + x.출발 + '</td><td>' + x.회차 + '</td><td>' + d.순번 + '/' + x._정류장수 + '</td><td>' + d.정류장 +
-        '</td><td>' + d.통과 + '</td><td>' + d.앞통과 + '</td><td><b>' + d.간격 + '</b></td><td>' + (종류 === '밀착' ? d.선 + '분 미만' : d.선 + '분 초과') + '</td><td>' + d.앞차량 + '</td><td>' + 기사이름(d.앞사원) + '</td></tr>');
+        '</td><td>' + d.통과 + '</td><td>' + d.앞통과 + '</td><td><b>' + d.간격 + '</b></td><td>' + d.기준 + '</td><td>' + (종류 === '밀착' ? d.선 + '분 미만' : d.선 + '분 초과') + '</td><td>' + d.앞차량 + '</td><td>' + 기사이름(d.앞사원) + '</td></tr>');
     });
   });
   var 다른 = 종류 === '밀착' ? '지연' : '밀착';
@@ -1319,9 +1322,12 @@ function 상세보기(id, 종류, 키, 스크롤안함) {
     (키 ? '<button class="ghost" type="button" data-detail="' + id + '|' + 종류 + '|">이 기사 전체 회차 보기</button> ' : '') +
     '<button class="ghost" type="button" id="detailcopy">표 복사</button> <button class="ghost" type="button" id="detailclose">닫기</button></span></div>';
   $('detailpanel').innerHTML = 머리 +
-    '<p class="note">앞차와 간격(분)이 기준선보다 작을수록 바짝 붙은 것입니다. 앞차가 늦어서 뒤차가 붙을 수도 있으니 앞차 차량·기사도 함께 보세요. 이 화면은 소장 분석용이며, 앞차 기사 이름은 상담 카드에 넣지 않습니다.</p>' +
+    '<p class="note">' + (종류 === '밀착'
+      ? '앞차와 간격(분)이 기준선(평균 배차간격×' + Math.round(밀착_배수 * 100) + '%)보다 작을수록 바짝 붙은 것입니다.'
+      : '앞차와 간격(분)이 기준선(평균 배차간격×' + Math.round(지연_배수 * 100) + '%)보다 클수록 많이 벌어진 것입니다.') +
+    ' 앞차가 늦어서 뒤차가 붙을 수도 있으니 앞차 차량·기사도 함께 보세요. 이 화면은 소장 분석용이며, 앞차 기사 이름은 상담 카드에 넣지 않습니다.</p>' +
     (요약.length ? '<ul class="easy">' + 요약.join('') + '</ul>' : '<p>' + 종류 + ' 정류장이 없습니다.</p>') +
-    (줄.length ? '<div class="scroll" style="max-height:60vh"><table id="tdetail"><tr><th>날짜</th><th>요일</th><th>출발</th><th>회차</th><th>순번</th><th>정류장</th><th>내 통과</th><th>앞차 통과</th><th>앞차와 간격(분)</th><th>기준선</th><th>앞차 차량</th><th>앞차 기사</th></tr>' + 줄.join('') + '</table></div>' : '');
+    (줄.length ? '<div class="scroll" style="max-height:60vh"><table id="tdetail"><tr><th>날짜</th><th>요일</th><th>출발</th><th>회차</th><th>순번</th><th>정류장</th><th>내 통과</th><th>앞차 통과</th><th>앞차와 간격(분)</th><th>평균 배차간격(분)</th><th>기준선</th><th>앞차 차량</th><th>앞차 기사</th></tr>' + 줄.join('') + '</table></div>' : '');
   $('detailpanel').hidden = false;
   if (!스크롤안함) $('detailpanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
@@ -2460,8 +2466,8 @@ var 도움말_글자 = [
   [/^정류장$/, '정류장 이름입니다.'],
   [/^내 통과$/, '이 회차가 그 정류장을 지난 시각입니다.'],
   [/^앞차 통과$/, '바로 앞차가 그 정류장을 지난 시각입니다.'],
-  [/^앞차와 간격\(분\)$/, '앞차와의 시간 차이(분)입니다. 기준선보다 작을수록 바짝 붙은 것입니다.'],
-  [/^기준선$/, '이보다 작으면 밀착, 이보다 크면 지연으로 세는 선입니다.'],
+  [/^앞차와 간격\(분\)$/, '앞차와의 시간 차이(분)입니다. 기준선보다 작으면 밀착, 크면 지연입니다.'],
+  [/^기준선$/, '평균 배차간격에 30%(밀착) 또는 170%(지연)를 곱한 값입니다. 밀착은 이보다 작으면, 지연은 이보다 크면 해당합니다.'],
   [/^앞차 차량$/, '바로 앞에 있던 차량 번호입니다.'],
   [/^앞차 기사$/, '바로 앞에 있던 차의 기사입니다. (소장 분석용, 상담 카드에는 넣지 않습니다)'],
   // 표 머리글: 일람
