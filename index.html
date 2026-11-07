@@ -1,10 +1,10 @@
 <!doctype html>
-<!-- ★ 프로그램 버전: v20261107-15  (파일 이름의 번호와 같습니다) -->
+<!-- ★ 프로그램 버전: v20261107-16  (파일 이름의 번호와 같습니다) -->
 <html lang="ko">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="program-version" content="v20261107-15">
+<meta name="program-version" content="v20261107-16">
 <title>운행기록 점검기 (사내규정판)</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap">
 <style>
@@ -278,7 +278,8 @@ details.fold[open]>summary{margin-bottom:10px}               /* 펼쳤을 때 �
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script>
 // =====================================================================
-// 운행기록 점검기 (사내규정판)   버전: v20261107-15   ← 날짜-일련번호
+// 운행기록 점검기 (사내규정판)   버전: v20261107-16   ← 날짜-일련번호
+// [v20261107-16 변경] 간격 그래프 말풍선의 '이 차 도착'·'앞차 도착'을 '15시 14분 54초' 모양으로 바꿈(말풍선만). 선정 계산 방식은 그대로.
 // [v20261107-15 변경] 표 머리글(메뉴) 글자가 많으면 한 줄로만 늘어놓지 않고 줄을 바꿔 세로로도 적음(CSS만 수정). 선정 계산 방식은 그대로.
 // [v20261107-14 변경] 지연·밀착 정류장 상세 표: '평균 배차간격(분)' 칸 추가, 안내문을 밀착/지연에 맞게 구분, 마우스 설명 2곳(앞차와 간격·기준선) 수정. 선정 계산 방식은 그대로.
 // [v20261107-13 변경] 새로 만든 메뉴·단추·접는 칸 제목·히트맵 머리글과, 원래 설명이 없던 ②③ 칸·기사 찾기·노선 바꿔보기·카드 표 머리글에 마우스 설명 추가. 계산 방식은 그대로.
@@ -331,7 +332,7 @@ details.fold[open]>summary{margin-bottom:10px}               /* 펼쳤을 때 �
 //  5) 예외: 내가 '밀착'인데 내 앞차가 '지연' 선정이면, 또는 내가 '지연'인데 앞차가
 //     '밀착' 선정이면 선정에서 빼줍니다(예외 인정).
 // =====================================================================
-var VERSION = 'v20261107-15';
+var VERSION = 'v20261107-16';
 
 // ---------- [기준값] 여기 숫자만 바꾸면 점검이 더 엄격/느슨해집니다 ----------
 var 지연_배수 = 1.7;          // 기준의 1.7배 초과면 '지연 정류장'
@@ -385,6 +386,13 @@ function 시각초(sec) {
   sec = Math.round(sec) % 86400;
   var h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), x = sec % 60;
   return [h, m, x].map(function (v) { return String(v).padStart(2, '0'); }).join(':');
+}
+// [v20261107-16] 초 숫자를 '15시 14분 54초' 글자로 바꿉니다. 그래프 말풍선의 도착 시각에만 씁니다.
+function 시분초글자(sec) {
+  if (sec == null) return '';
+  sec = Math.round(sec) % 86400;   // 24시를 넘으면 24시간을 뺍니다
+  var h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), x = sec % 60;
+  return h + '시 ' + m + '분 ' + x + '초';
 }
 // '20260925' → '금'
 function 요일(d) {
@@ -946,9 +954,9 @@ function 간격그림(열, 기준, D, x) {
   var 이름들 = D && D.정류장 ? D.정류장 : [];
   칸.forEach(function (c, i) {
     if (!c) return;                                                        // 기록이 없는 정류장은 설명도 없음
-    var 줄 = [(i + 1) + '번째 정류장 · ' + (이름들[i] || '(이름 없음)'), '이 차 도착 ' + 시각초(c.통과)];
+    var 줄 = [(i + 1) + '번째 정류장 · ' + (이름들[i] || '(이름 없음)'), '이 차 도착 ' + 시분초글자(c.통과)];
     if (c.간격 != null) {
-      줄.push('앞차 도착 ' + 시각초(c.통과 - c.간격 * 60));
+      줄.push('앞차 도착 ' + 시분초글자(c.통과 - c.간격 * 60));
       줄.push('앞차와 간격 ' + 분글자(c.간격) + (c.종류 === '밀착' ? '  ▼ 붙음(밀착)' : (c.종류 === '지연' ? '  ■ 벌어짐(지연)' : '')));
     } else 줄.push('앞차 없음 (이 정류장을 가장 먼저 지난 차)');
     if (앞간격[i] != null) 줄.push('앞차와 그 앞차 간격 ' + 분글자(앞간격[i]));
