@@ -1,10 +1,10 @@
 <!doctype html>
-<!-- ★ 프로그램 버전: v20261107-11  (파일 이름의 번호와 같습니다) -->
+<!-- ★ 프로그램 버전: v20261107-12  (파일 이름의 번호와 같습니다) -->
 <html lang="ko">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="program-version" content="v20261107-11">
+<meta name="program-version" content="v20261107-12">
 <title>운행기록 점검기 (사내규정판)</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap">
 <style>
@@ -102,6 +102,9 @@ select{font-family:inherit;font-size:1rem;padding:6px 8px;border:1px solid var(-
 .gapgraph .hov{fill:transparent;cursor:crosshair}
 .gapgraph .hov:hover{fill:rgba(0,0,0,.12)}
 @media print{.gapgraph .hov{display:none}}
+/* [v20261107-12] 그래프 말풍선 (마우스를 따라다님) */
+#gaptip{position:fixed;z-index:50;pointer-events:none;background:#111;color:#fff;font-size:15px;line-height:1.5;padding:8px 12px;border-radius:6px;white-space:pre-line;max-width:360px;box-shadow:0 2px 8px rgba(0,0,0,.35)}
+@media print{#gaptip{display:none}}
 .sheet ol.q{columns:2;column-gap:18px}                                   /* [v20261107-04] 상담 질문 2단 (A4 한 장) */
 .sheet ol.q li{break-inside:avoid}                                       /* 질문 하나가 두 단으로 갈라지지 않게 */
 .sheet .two .box b+b{margin-top:6px}                                     /* 한 상자 안 두 번째 제목 위 여백 */                                          /* [v20261107-04] 판정 순서 4줄 */                   /* 책임 칸은 연한 초록 바탕 */
@@ -274,7 +277,8 @@ details.fold[open]>summary{margin-bottom:10px}               /* 펼쳤을 때 �
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script>
 // =====================================================================
-// 운행기록 점검기 (사내규정판)   버전: v20261107-11   ← 날짜-일련번호
+// 운행기록 점검기 (사내규정판)   버전: v20261107-12   ← 날짜-일련번호
+// [v20261107-12 변경] 간격 그래프 말풍선: 브라우저 기본 말풍선(1초 대기, 터치 안 됨) 대신 마우스를 올리는 즉시 뜨고 따라다니는 말풍선으로. 손가락으로 눌러도 뜸. 계산 방식은 그대로.
 // [v20261107-11 변경] 기사별 막대: 가장 심했던 회차가 밀착(▼)인지 지연(■)인지 글자로 표시, 막대에 마우스를 올리면 그 회차와 밀착·지연 최고 %를 따로 보여 줌. 오른쪽 글자 잘림 고침. 계산 방식은 그대로.
 // [v20261107-10 변경] 간격 그래프에 마우스를 올리면 그 정류장의 이름·이 차/앞차 도착 시각·앞차와 간격·앞차와 그 앞차 간격이 뜸. 인쇄에는 안 나옴. 계산 방식은 그대로.
 // [v20261107-09 변경] 시간대 히트맵(날짜 × 출발 시간대, 붙음 비율, 평일/주말 합계, 가장 몰린 칸 3곳) 추가. 소장 분석용, 접는 칸. 상담 카드에는 넣지 않음. 계산 방식은 그대로.
@@ -323,7 +327,7 @@ details.fold[open]>summary{margin-bottom:10px}               /* 펼쳤을 때 �
 //  5) 예외: 내가 '밀착'인데 내 앞차가 '지연' 선정이면, 또는 내가 '지연'인데 앞차가
 //     '밀착' 선정이면 선정에서 빼줍니다(예외 인정).
 // =====================================================================
-var VERSION = 'v20261107-11';
+var VERSION = 'v20261107-12';
 
 // ---------- [기준값] 여기 숫자만 바꾸면 점검이 더 엄격/느슨해집니다 ----------
 var 지연_배수 = 1.7;          // 기준의 1.7배 초과면 '지연 정류장'
@@ -945,8 +949,8 @@ function 간격그림(열, 기준, D, x) {
     } else 줄.push('앞차 없음 (이 정류장을 가장 먼저 지난 차)');
     if (앞간격[i] != null) 줄.push('앞차와 그 앞차 간격 ' + 분글자(앞간격[i]));
     var x0 = Math.max(좌, +X(i) - 폭 / 2), x1 = Math.min(W - 우, +X(i) + 폭 / 2);   // 이 정류장 칸의 왼쪽·오른쪽 끝
-    g += '<rect class="hov" x="' + x0.toFixed(1) + '" y="' + 위 + '" width="' + Math.max(x1 - x0, 1).toFixed(1) + '" height="' + 높 + '"><title>' +
-      줄.join('\n').replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</title></rect>';
+    g += '<rect class="hov" x="' + x0.toFixed(1) + '" y="' + 위 + '" width="' + Math.max(x1 - x0, 1).toFixed(1) + '" height="' + 높 + '" data-tip="' +   // [v20261107-12] 말풍선 글은 data-tip에 (아래 '그래프 말풍선' 부분이 꺼내 보여 줌)
+      줄.join('\n').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;').replace(/\n/g, '&#10;') + '"></rect>';
   });
   // 맨 위 요약 한 줄: "정류장 N곳 중 붙음 ○곳 · 벌어짐 ○곳 (선정 한도 ○곳)"
   var 요약 = '정류장 ' + N + '곳 중 붙음 ▼ ' + 붙음수 + '곳 · 벌어짐 ■ ' + 벌어짐수 + '곳';
@@ -1899,6 +1903,23 @@ document.addEventListener('toggle', function (e) {
   var 키 = e.target.getAttribute && e.target.getAttribute('data-fold');   // 표마다 붙여 둔 이름표
   if (키) 펼침기억[키] = e.target.open;                                    // 펼쳤으면 true, 접었으면 false
 }, true);
+// [v20261107-12] 그래프 말풍선: 정류장 칸(data-tip) 위에 마우스가 오면 즉시 말풍선을 띄우고, 마우스를 따라 옮깁니다.
+//   손가락으로 누른 경우(터치)도 같은 말풍선이 뜹니다. 그래프 밖으로 나가면 사라집니다.
+var 말풍선 = document.createElement('div');     // 말풍선 상자 하나를 만들어 두고 계속 다시 씁니다
+말풍선.id = 'gaptip'; 말풍선.hidden = true; document.body.appendChild(말풍선);
+function 말풍선보이기(e) {
+  var t = e.target && e.target.getAttribute ? e.target.getAttribute('data-tip') : null;   // 마우스 아래 칸의 글
+  if (!t) { 말풍선.hidden = true; return; }                                             // 정류장 칸이 아니면 숨김
+  말풍선.textContent = t; 말풍선.hidden = false;
+  var x = e.clientX + 16, y = e.clientY + 16;                                           // 마우스 오른쪽 아래에
+  var w = 말풍선.offsetWidth, h = 말풍선.offsetHeight;
+  if (x + w > window.innerWidth - 8) x = e.clientX - w - 16;                            // 화면 오른쪽을 넘으면 왼쪽에
+  if (y + h > window.innerHeight - 8) y = e.clientY - h - 16;                           // 화면 아래를 넘으면 위쪽에
+  말풍선.style.left = Math.max(4, x) + 'px'; 말풍선.style.top = Math.max(4, y) + 'px';
+}
+document.addEventListener('mousemove', 말풍선보이기);
+document.addEventListener('click', 말풍선보이기);                                       // 손가락으로 누를 때(터치)
+window.addEventListener('scroll', function () { 말풍선.hidden = true; }, true);          // 화면을 움직이면 숨김
 // [v20261107-09] 히트맵 칸을 누르면 그 칸의 회차 목록을 표 아래에 보여 줍니다. ('판정 과정' 단추로 결과설명도 열 수 있습니다)
 document.addEventListener('click', function (e) {
   var t = e.target.closest ? e.target.closest('[data-heat]') : null;
