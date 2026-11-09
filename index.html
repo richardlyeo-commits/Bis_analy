@@ -1,10 +1,10 @@
 <!doctype html>
-<!-- ★ 프로그램 버전: v20261109-10  (파일 이름의 번호와 같습니다) -->
+<!-- ★ 프로그램 버전: v20261109-12  (파일 이름의 번호와 같습니다) -->
 <html lang="ko">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="program-version" content="v20261109-10">
+<meta name="program-version" content="v20261109-12">
 <title>운행기록 점검기 (사내규정판)</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap">
 <style>
@@ -45,7 +45,10 @@ button{font-family:inherit;font-size:1rem;background:var(--accent);color:var(--a
   border-radius:6px;padding:10px 16px;cursor:pointer;font-weight:700}
 button.ghost{background:transparent;color:var(--accent);border:1px solid var(--accent)}
 button:focus-visible,.drop:focus-visible,input:focus-visible{outline:3px solid var(--fg);outline-offset:2px}
-.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.cards{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:12px}   /* [v20261109-12] 한 줄 고정 */
+.cards .card{min-width:0;overflow-wrap:anywhere}
+@media (max-width:1000px){.cards{gap:6px}.cards .card{padding:8px 6px}.cards .card b{font-size:1.15rem}.cards .card span{font-size:.78rem;line-height:1.25;display:block}}
+@media (max-width:640px){.cards .card b{font-size:1rem}.cards .card span{font-size:.7rem}}
 .card{border:1px solid var(--line);border-radius:6px;padding:12px}
 .card b{display:block;font-size:1.6rem;font-variant-numeric:tabular-nums}
 .card span{color:var(--muted);font-size:.9rem}
@@ -294,7 +297,9 @@ details.fold[open]>summary{margin-bottom:10px}               /* 펼쳤을 때 �
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script>
 // =====================================================================
-// 운행기록 점검기 (사내규정판)   버전: v20261109-10   ← 날짜-일련번호
+// 운행기록 점검기 (사내규정판)   버전: v20261109-12   ← 날짜-일련번호
+// [v20261109-12 변경] 맨 위 요약 카드(분석한 날 수·총 운행 회차 …)가 창을 줄이면 오른쪽 카드부터 아래로 내려가던 것을, 한 줄을 유지하며 카드 폭·글자가 함께 줄어들게 고침. 계산 방식은 그대로.
+// [v20261109-11 변경] 회차 묶음 표의 칸에 마우스를 올리면(터치는 누르면) 말풍선이 뜹니다: 정류장·기사·차량·도착 시각·앞차 도착 시각·앞차와 간격·그 정류장 기준·구간 운행시간·잔류시간. 말풍선 띄우는 부분이 칸 안쪽 글자 위에서도 동작하도록 고침. 계산 방식은 그대로.
 // [v20261109-10 변경] ★ 기사 개인 분석 칸 추가: 올릴 때마다 기사·날짜·오전/오후별 하루 점수를 이 컴퓨터에 쌓고(같은 날 덮어씀), 같은 조건(요일 구분+오전/오후) 동료와 비교해 '높은 날'을 정하고, 여러 날·여러 주 반복이면 '꾸준히 높음'(1주치뿐이면 잠정, 표본 적으면 표본 부족). 쌓일수록 신뢰도 표시가 올라감.
 // [v20261109-09 변경] 묶음별 '차 N대뿐/정상보다 많음'·'정상에 없는 묶음' 메모(1-1번 가정)를 없애고, 배차표를 올린 날에만 그 배차표의 묶음별 정상 건수와 비교하도록 바꿈. 하루 단위 운행 횟수·대수 점검(⑤칸)은 그대로.
 // [v20261109-08 변경] ① 정상 운행 대수·횟수를 소장님이 ⑤칸에 직접 입력(노선별 저장), 그날 운행 건수와 비교해 모자람/많음 표시 ② 지켜볼 기사 기본값 삭제, ③칸에 이름도 적을 수 있음(이름표에서 ID를 찾아 분석, 못 찾으면 알려 줌)
@@ -360,7 +365,7 @@ details.fold[open]>summary{margin-bottom:10px}               /* 펼쳤을 때 �
 //  5) 예외: 내가 '밀착'인데 내 앞차가 '지연' 선정이면, 또는 내가 '지연'인데 앞차가
 //     '밀착' 선정이면 선정에서 빼줍니다(예외 인정).
 // =====================================================================
-var VERSION = 'v20261109-10';
+var VERSION = 'v20261109-12';
 
 // ---------- [기준값] 여기 숫자만 바꾸면 점검이 더 엄격/느슨해집니다 ----------
 var 지연_배수 = 1.7;          // 기준의 1.7배 초과면 '지연 정류장'
@@ -1997,7 +2002,18 @@ function 격자그리기() {
         if (mn == null || x.간격 < mn.간격) mn = x;
         if (mx == null || x.간격 > mx.간격) mx = x;
       }
-      return '<td class="' + cls + '"><div>' + 위 + '</div><div class="g">' + 아래 + '</div></td>';
+      // [v20261109-11] 칸 말풍선: 이 칸이 어느 정류장·기사·차량인지와 판정에 쓴 숫자를 보여 줍니다.
+      var 풍 = [(si + 1) + '번째 정류장 · ' + 이름, 기사이름(c.사원) + ' · ' + c.차량.replace('경기', '') + ' · ' + 시각글자(c.시작) + ' 출발', '이 차 도착 ' + 시분초글자(x.통과)];
+      if (x.간격 != null) {
+        풍.push('앞차 도착 ' + 시분초글자(x.통과 - x.간격 * 60));
+        풍.push('앞차와 간격 ' + 분글자(x.간격) + (x.종류 === '밀착' ? '  ▼ 붙음(밀착)' : (x.종류 === '지연' ? '  ■ 벌어짐(지연)' : '')));
+        if (x.기준 != null) 풍.push('이 정류장 기준 ' + 소수1(x.기준) + '분 (붙음 ' + 소수1(x.기준 * 밀착_배수) + '분 미만 · 벌어짐 ' + 소수1(x.기준 * 지연_배수) + '분 초과)');
+        if (x.경계) 풍.push('* 앞차가 다른 묶음의 차라서 참고용 (최소·최대에서 뺌)');
+      } else 풍.push('앞차 없음 (이 정류장을 가장 먼저 지난 차)');
+      if (x.구간 != null) 풍.push('앞 정류장에서 여기까지 ' + 길이글자(x.구간));
+      if (x.잔류 != null) 풍.push('이 정류장에 머문 시간 ' + 길이글자(x.잔류));
+      var 풍글 = 풍.join('\n').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;').replace(/\n/g, '&#10;');
+      return '<td class="' + cls + '" data-tip="' + 풍글 + '"><div>' + 위 + '</div><div class="g">' + 아래 + '</div></td>';
     }).join('');
     function 끝칸(x) { return '<td class="mm">' + (x ? '<b>' + 분글자(x.간격) + '</b> · ' + 시각초(x.통과) : '') + '</td>'; }
     var 빈칸들 = 빈열.map(function () { return '<td class="gc gone"></td>'; }).join('');   // 기록 없는 운행 자리(회색)
@@ -2476,7 +2492,8 @@ document.addEventListener('toggle', function (e) {
 var 말풍선 = document.createElement('div');     // 말풍선 상자 하나를 만들어 두고 계속 다시 씁니다
 말풍선.id = 'gaptip'; 말풍선.hidden = true; document.body.appendChild(말풍선);
 function 말풍선보이기(e) {
-  var t = e.target && e.target.getAttribute ? e.target.getAttribute('data-tip') : null;   // 마우스 아래 칸의 글
+  var 칸요소 = e.target && e.target.closest ? e.target.closest('[data-tip]') : null;       // [v20261109-11] 칸 안쪽 글자 위에서도 바깥 칸(data-tip)을 찾음
+  var t = 칸요소 ? 칸요소.getAttribute('data-tip') : null;                               // 마우스 아래 칸의 글
   if (!t) { 말풍선.hidden = true; return; }                                             // 정류장 칸이 아니면 숨김
   말풍선.textContent = t; 말풍선.hidden = false;
   var x = e.clientX + 16, y = e.clientY + 16;                                           // 마우스 오른쪽 아래에
