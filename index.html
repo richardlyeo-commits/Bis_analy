@@ -1,10 +1,10 @@
 <!doctype html>
-<!-- ★ 프로그램 버전: v20261111-01  (파일 이름의 번호와 같습니다) -->
+<!-- ★ 프로그램 버전: v20261111-04  (파일 이름의 번호와 같습니다) -->
 <html lang="ko">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="program-version" content="v20261111-01">
+<meta name="program-version" content="v20261111-04">
 <title>운행기록 점검기 (사내규정판)</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap">
 <style>
@@ -130,6 +130,15 @@ table.gridtbl{border-collapse:separate;border-spacing:0;width:max-content;min-wi
 .gridtbl td.gl,.gridtbl th.gl{position:sticky;left:0;z-index:1;text-align:left;min-width:190px;max-width:230px;overflow:hidden;text-overflow:ellipsis}
 .gridtbl td.gc{min-width:92px;line-height:1.25}
 .gridtbl td.gc .g{font-weight:700}
+/* [v20261111-02] 기사 x 날짜 히트맵 */
+.heat{border-collapse:separate;border-spacing:1px;font-size:10px}
+.heat th{font-weight:400;color:var(--muted);padding:0;font-size:9px;text-align:center;white-space:nowrap}
+.heat th.hname{text-align:left;padding-right:6px;font-size:11px;color:inherit;position:sticky;left:0;background:var(--panel,#fff);z-index:1}
+.heat td{width:15px;height:15px;padding:0;text-align:center;line-height:15px;border-radius:2px}
+.heat td.none{background:repeating-linear-gradient(45deg,#f0f0f0,#f0f0f0 2px,#fff 2px,#fff 4px)}
+.heat td.pick{outline:1.5px solid #111;outline-offset:-1.5px;font-size:8px}
+.heat td.sep{width:3px;background:none;border-radius:0}
+.heat .hsum{font-size:10px;color:var(--muted);padding-left:6px;white-space:nowrap}
 .gridtbl td.bad{background:var(--bad-bg);color:var(--bad-fg)}      /* 밀착: 앞차에 너무 붙음 */
 .gridtbl td.late{background:var(--late-bg);color:var(--warn)}      /* 지연: 앞차와 너무 벌어짐 */
 .gridtbl td.edge .g{font-weight:400;font-style:italic}   /* 앞 묶음의 차와 잰 간격(끝에 *): 최소·최대에서는 제외 */
@@ -188,11 +197,16 @@ details.fold[open]>summary::before{content:'▼'}             /* 펼치면 ▼ �
 details.fold>summary h2{display:inline}                      /* 제목을 ▶ 옆에 나란히 */
 details.fold[open]>summary{margin-bottom:10px}               /* 펼쳤을 때 제목과 내용 사이 여백 */
 #printArea{display:none}
+/* [v20261111-04] 상담 카드 높이를 인쇄와 같은 조건으로 재는 동안만 쓰는 상태 (화면 밖에 숨겨 놓고 잽니다) */
+body.cardmeasure #printArea{display:block;position:absolute;left:-10000px;top:0;width:186mm;visibility:hidden}
+body.cardmeasure #printArea .sheet{border:0;border-radius:0;padding:0}
 @media print{
   body{background:#fff;padding:0}
   .wrap{display:none}
   #printArea{display:block}
   #printArea .sheet{border:0;border-radius:0;padding:0;page-break-after:always;break-after:page}
+  #printArea .sheet:last-child{page-break-after:auto;break-after:auto}   /* [v20261111-04] 마지막 카드 뒤 빈 장이 나오지 않게 */
+  #printArea .sheet .memo{height:56px}                                   /* [v20261111-04] 의견 칸을 조금 낮춰 한 장에 들어가게 */
   @page{size:A4;margin:12mm}
   /* [v20261109-16] 잉크 절약: 화면이 어두운 모드여도 종이에는 흰 바탕·검은 글씨. 색 배경은 모두 빼고 굵기·밑줄·테두리로 구분합니다. */
   :root:root:root{--bg:#fff;--panel:#fff;--fg:#000;--muted:#333;--line:#999;--accent:#000;--accent-fg:#fff;--warn:#000;--warn-bg:#fff;--ok:#000;--ok-bg:#fff;--mid-bg:#fff;--bad-bg:#fff;--bad-fg:#000;--late-bg:#fff;--gray-fg:#444;color-scheme:light}
@@ -203,6 +217,29 @@ details.fold[open]>summary{margin-bottom:10px}               /* 펼쳤을 때 �
   #printArea .sheet td.l3{font-weight:700;text-decoration:underline}              /* 확인 필요: 굵게+밑줄 */
   #printArea .sheet td.l4{font-weight:800;text-decoration:underline;border:2px solid #000}   /* 가장 심함: 굵게+밑줄+두꺼운 테두리 */
   #printArea .sheet .fair{border:1px dashed #000}
+
+  /* [v20261111-03] 히트맵은 색이 곧 내용이라, 잉크 절약 규칙에서 빼고 색을 그대로 찍습니다.
+     (크롬 인쇄창에서 '배경 그래픽'도 켜 두셔야 합니다) */
+  body.heatprinting #printArea .heatprint,
+  body.heatprinting #printArea .heatprint *{
+    -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important;
+  }
+  body.heatprinting #printArea .heatprint .heat td{
+    width:15px;height:15px;line-height:15px;font-size:8px;color:#000;
+    border:0.4px solid #bbb;                                  /* 색이 안 찍혀도 칸은 보이게 */
+  }
+  body.heatprinting #printArea .heatprint .heat td.pick{outline:1.4px solid #000;outline-offset:-1.4px}
+  body.heatprinting #printArea .heatprint .heat td.none{
+    background-image:repeating-linear-gradient(45deg,#d8d8d8,#d8d8d8 2px,#fff 2px,#fff 4px) !important;
+  }
+  body.heatprinting #printArea .heatprint .heat td.sep{border:0;background:none !important}
+  body.heatprinting #printArea .heatprint .heat th.hname{position:static;font-size:9px}
+  body.heatprinting #printArea .heatprint .heat th{font-size:8px}
+  body.heatprinting #printArea .heatprint .hsum{font-size:8px}
+  body.heatprinting #printArea .heatprint .head h2{font-size:14px}
+  body.heatprinting #printArea .heatprint .note{font-size:9px}
+  body.heatprinting #printArea .heatprint select,
+  body.heatprinting #printArea .heatprint button{display:none !important}
 }
 </style>
 </head>
@@ -306,7 +343,18 @@ details.fold[open]>summary{margin-bottom:10px}               /* 펼쳤을 때 �
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script>
 // =====================================================================
-// 운행기록 점검기 (사내규정판)   버전: v20261111-01   ← 날짜-일련번호
+// 운행기록 점검기 (사내규정판)   버전: v20261111-04   ← 날짜-일련번호
+// [v20261111-04 변경] 상담 카드가 기사에 따라 두 장으로 넘어가던 것을 한 장으로 맞췄습니다.
+//   인쇄 직전에 카드 높이를 실제 인쇄 폭으로 재 보고, 한 쪽을 넘는 카드만 그만큼 줄입니다(넘지 않으면 그대로).
+//   너무 많이 줄여야 하는 카드(배율 0.70 미만)는 글씨가 작아지니 그냥 두 장으로 두고 화면에 알려 줍니다.
+//   마지막 카드 뒤에 빈 장이 한 장 더 나오던 것도 함께 고쳤습니다. 판정 계산 방식은 그대로.
+// [v20261111-03 변경] 히트맵을 종이에 뽑을 수 있게 했습니다. '🖨 히트맵 인쇄' 단추를 누르면 스크롤에 잘리지 않은
+//   히트맵 전체가 한 장에 나옵니다. 이 점검기는 잉크를 아끼려고 인쇄할 때 배경색을 지우는데, 히트맵은 색이 곧 내용이라
+//   히트맵 안에서만 색을 살립니다. 흑백으로 뽑거나 '배경 그래픽'을 꺼도 읽히도록 칸마다 진하기 단계(1~4)를 숫자로 찍습니다.
+// [v20261111-02 변경] 기사 개인 분석 아래에 '기사 × 날짜 히트맵'을 넣었습니다. 가로=날짜, 세로=기사.
+//   색이 진할수록 그날 그 기사가 심했다는 뜻이고, 테두리 친 칸은 규정상 선정된 날입니다.
+//   맨 아랫줄은 그날 기사 전체 평균이라, 세로로 한 줄이 통째로 진하면 기사가 아니라 그날 조건(눈·공사) 문제임을 알 수 있습니다.
+//   기록이 없는 날은 빗금으로 따로 표시합니다(빈칸으로 두면 '깨끗한 날'로 잘못 읽히기 때문). 판정 계산 방식은 그대로.
 // [v20261111-01 변경] '한 번만 입력' 고치기: ① 배차표를 노선별로 따로 보관(다른 노선 배차표를 올려도 덮어쓰지 않음, 5번과 5-2번을 정확히 구분) ② ③·⑤칸은 CSV를 올린 뒤에 열림(먼저 적었다가 사라지던 문제), 칸 옆 문구를 사실대로 ③ 배차표 저장이 실패하면 경고 ④ 이름표 저장 날짜를 한국 시각으로(오전 9시 전에 어제 날짜가 찍히던 오류). 판정 계산 방식은 그대로.
 // [v20261110-04 변경] ① 선정 비율의 '차량 수'를 고르는 스위치(차량수_기준: '실제'/'정상대수') 추가. 처음값 '실제'라 결과는 그대로. ② '도착' 정류장 줄이 없는 파일을 올리면 쉬운 말로 알려 줌.
 // [v20261110-03 변경] 기사 개인 분석: ① 기록 저장이 실패하면 화면에 경고 ② '전체 기록 파일로 저장 / 기록 파일 불러오기' 단추(백업·옮기기). 계산 방식은 그대로.
@@ -383,7 +431,7 @@ details.fold[open]>summary{margin-bottom:10px}               /* 펼쳤을 때 �
 //  5) 예외: 내가 '밀착'인데 내 앞차가 '지연' 선정이면, 또는 내가 '지연'인데 앞차가
 //     '밀착' 선정이면 선정에서 빼줍니다(예외 인정).
 // =====================================================================
-var VERSION = 'v20261111-01';
+var VERSION = 'v20261111-04';
 
 // ---------- [기준값] 여기 숫자만 바꾸면 점검이 더 엄격/느슨해집니다 ----------
 var 지연_배수 = 1.7;          // 기준의 1.7배 초과면 '지연 정류장'
@@ -1741,9 +1789,37 @@ function 카드칸연결() {
     선택수갱신();
   });
 }
+// [v20261111-04] 상담 카드를 A4 한 장에 맞춥니다.
+// A4 세로에서 위아래 여백(12mm씩)을 뺀 높이는 약 1032px입니다. 조금 여유를 둬 1016px을 기준으로 씁니다.
+var 카드_한쪽높이 = 1016;
+var 카드_최소배율 = 0.70;    // 이보다 작게 줄이면 글씨가 너무 작아져서, 차라리 두 장으로 둡니다
+
+function 카드한장맞추기() {
+  var 영역 = $('printArea');
+  if (!영역) return [];
+  document.body.classList.add('cardmeasure');        // 인쇄와 같은 폭·여백으로 바꿔 놓고
+  var 못맞춘것 = [];
+  Array.prototype.forEach.call(영역.querySelectorAll('.sheet'), function (장) {
+    장.style.zoom = '';                               // 지난번 배율을 지우고 원래 높이부터 잽니다
+    var 높이 = 장.offsetHeight;
+    if (높이 > 카드_한쪽높이) {
+      var 배율 = 카드_한쪽높이 / 높이;
+      if (배율 < 카드_최소배율) { 못맞춘것.push(높이); return; }   // 너무 작아지면 줄이지 않습니다
+      장.style.zoom = 배율;
+    }
+  });
+  document.body.classList.remove('cardmeasure');
+  return 못맞춘것;
+}
+
 // 인쇄: 숨겨둔 인쇄 영역에 카드를 채우고 인쇄 창을 엽니다. (인쇄 창에서 'PDF로 저장'도 됩니다)
 function 인쇄하기(ids) {
   $('printArea').innerHTML = ids.map(function (id) { return 카드만들기(id, 마지막결과); }).join('');
+  var 못맞춘것 = 카드한장맞추기();                      // 한 쪽을 넘는 카드는 그만큼 줄입니다
+  if (못맞춘것.length && $('selcount')) {
+    $('selcount').textContent = '현재 ' + ids.length + '명 선택 · ' + 못맞춘것.length +
+      '명은 내용이 많아 한 장에 다 넣지 못했습니다(두 장으로 나옵니다)';
+  }
   window.print();
 }
 
@@ -3324,8 +3400,140 @@ function 기사분석계산(노선, 기간선택) {
     var a = 앞.맵[b.id]; b.앞기간 = (a && a.n >= 분석_최소운행) ? a : null;     // 바로 앞 기간 기록(운행 충분할 때만)
   });
   목록.sort(function (a, b) { return (b.최고 - a.최고) || ((b.m + b.l) - (a.m + a.l)) || ((b.ms + b.ls) / (b.st || 1) - (a.ms + a.ls) / (a.st || 1)); });
-  return { 목록: 목록, 이름: 이름, 기간선택: 기간선택, 달목록: 달목록, 기록날수: 날목록.length, 첫날: 첫날, 마지막날: 마지막날,
+  return { 칸들: 기간칸(시작, 끝), 날들: 날들,                      // [v20261111-02] 히트맵이 쓸 하루치 칸과 기록 있는 날
+           목록: 목록, 이름: 이름, 기간선택: 기간선택, 달목록: 달목록, 기록날수: 날목록.length, 첫날: 첫날, 마지막날: 마지막날,
            기간있는날: 있는날, 기간빠진: 빠진, 받을수있음: 받을수있음, 못받음: 못받음, 오늘: 오늘, 기간시작: 시작, 기간끝: 끝 };
+}
+
+// ---- (3-2) [v20261111-02] 기사 x 날짜 히트맵 ----
+var 히트맵종류 = '밀착';     // '밀착' | '지연' | '선정'
+
+// 진하기 단계(0~4)를 구합니다. 0=없음, 4=가장 심함.
+// 색과 숫자를 같은 기준으로 쓰려고 따로 떼어 놓았습니다(인쇄할 때 숫자로 찍습니다).
+function 히트단계(종류, 값) {
+  if (종류 === '선정') return 값 >= 3 ? 4 : 값 === 2 ? 3 : 값 === 1 ? 2 : 0;
+  // 밀착/지연은 '잰 정류장 중 몇 %가 붙었나/벌어졌나'
+  return (값 >= .20) ? 4 : (값 >= .10) ? 3 : (값 >= .05) ? 2 : (값 > 0) ? 1 : 0;
+}
+
+// 단계를 색으로. 진할수록 심합니다.
+function 히트색(종류, 값, 있음) {
+  if (!있음) return '';                                   // 기록 없는 날은 빗금(.none)으로 따로 칠합니다
+  var 단 = 히트단계(종류, 값);
+  var 밀 = ['#F4F4F2', '#FDE2E0', '#F7B3AC', '#EC7C70', '#D4382A'];
+  var 지 = ['#F4F4F2', '#FFF0D9', '#FFD79A', '#F2AD55', '#D98514'];
+  var 뽑 = ['#F4F4F2', '#F8A99D', '#F8A99D', '#E8594A', '#B42318'];
+  return (종류 === '밀착' ? 밀 : 종류 === '지연' ? 지 : 뽑)[단];
+}
+
+function 히트맵만들기(A, 인쇄, 노선) {
+  if (!A.칸들 || !A.칸들.length) return '';
+  // (가) 가로축: 기간의 첫날~끝날을 하루도 빼지 않고 늘어놓습니다.
+  //      기록이 없는 날을 빈칸으로 두면 '깨끗한 날'로 잘못 보이기 때문입니다.
+  var 시작 = A.기간시작, 끝 = A.기간끝;
+  if (!시작 || !끝) return '';
+  if (A.첫날 && 시작 < A.첫날) 시작 = A.첫날;
+  if (A.마지막날 && 끝 > A.마지막날) 끝 = A.마지막날;
+  var 날목록 = [];
+  for (var d = 시작; d && d <= 끝 && 날목록.length < 62; d = 날짜더하기(d, 1)) 날목록.push(d);
+  if (날목록.length < 2) return '';
+
+  // (나) 세로축: 기사. 같은 날에 조가 둘이면 하루로 합칩니다.
+  var 칸 = {};
+  A.칸들.forEach(function (c) {
+    var k = c.id + '|' + c.d, g = 칸[k] || (칸[k] = { n: 0, m: 0, l: 0, ms: 0, ls: 0, st: 0 });
+    g.n += c.n; g.m += c.m; g.l += c.l; g.ms += c.ms; g.ls += c.ls; g.st += c.st;
+  });
+  var 기사순 = A.목록.map(function (b) { return b.id; });
+
+  var 종류 = 히트맵종류;
+  var 종류글 = 종류 === '밀착' ? '▼ 붙은 정류장 비율' : 종류 === '지연' ? '■ 벌어진 정류장 비율' : '선정 건수(밀착+지연)';
+  var 선택 = 인쇄 ? '<b>' + 종류글 + '</b>' :
+    '<select id="heatkind" title="무엇을 색으로 볼지 고릅니다">' +
+    ['밀착', '지연', '선정'].map(function (k) {
+      var 글 = k === '밀착' ? '▼ 붙은 정류장 비율' : k === '지연' ? '■ 벌어진 정류장 비율' : '선정 건수(밀착+지연)';
+      return '<option value="' + k + '"' + (종류 === k ? ' selected' : '') + '>' + 글 + '</option>';
+    }).join('') + '</select>';
+
+  var h = 인쇄 ? '<div class="heatprint">' : '';
+  h += '<div class="head" style="margin-top:14px"><h2>🔥 기사 × 날짜 히트맵</h2><span>' + 선택 +
+       (인쇄 ? '<button id="heatprintbtn" class="ghost small" type="button" style="display:none"></button>' :
+               ' <button id="heatprintbtn" class="ghost small" type="button" title="히트맵만 종이 한 장에 인쇄합니다">🖨 히트맵 인쇄</button>') + '</span></div>';
+  if (인쇄) h += '<p class="note">' + (노선 || '') + ' · 기간 ' + A.이름 + ' · 출력 ' + 오늘글() + '</p>';
+  h += '<p class="note">진할수록 심한 날입니다. <b>세로로 한 줄이 통째로 진하면</b> 그날 조건(눈·공사·행사) 문제일 수 있으니 기사 탓으로 보지 마십시오. ' +
+       '<b>가로로 한 줄이 진하면</b> 그 기사를 확인해 보십시오. 테두리 친 칸(▼/■)은 규정상 <b>선정</b>된 날입니다. ' +
+       '빗금 칸은 <b>기록이 없는 날</b>이지 깨끗한 날이 아닙니다.' +
+       (인쇄 ? ' 칸 안 숫자는 진하기 단계(1~4)로, 흑백으로 뽑아도 읽을 수 있게 넣었습니다.' : '') + '</p>';
+
+  // 인쇄할 때는 스크롤 상자를 쓰지 않습니다. 상자에 넣으면 보이는 부분만 찍히고 잘립니다.
+  h += (인쇄 ? '<div>' : '<div class="scroll" style="max-height:52vh">') + '<table class="heat"><tr><th class="hname">기사</th>';
+  날목록.forEach(function (d, i) {
+    var 일 = +d.slice(6, 8);
+    var 새달 = (i > 0 && d.slice(4, 6) !== 날목록[i - 1].slice(4, 6));
+    if (새달) h += '<th class="sep"></th>';
+    h += '<th title="' + 날짜꼴(d) + ' ' + 요일(d) + '">' + (일 === 1 || i === 0 ? '<b>' + (+d.slice(4, 6)) + '/' + 일 + '</b>' : 일) + '</th>';
+  });
+  h += '<th class="hsum">합계</th></tr>';
+
+  기사순.forEach(function (id) {
+    var 이름 = 기사이름(id);
+    h += '<tr><th class="hname" title="' + id + '">' + 이름 + '</th>';
+    var 합m = 0, 합l = 0, 합운 = 0;
+    날목록.forEach(function (d, i) {
+      if (i > 0 && d.slice(4, 6) !== 날목록[i - 1].slice(4, 6)) h += '<td class="sep"></td>';
+      var g = 칸[id + '|' + d];
+      if (!g) { h += '<td class="none" title="' + 날짜꼴(d) + ' 기록 없음"></td>'; return; }
+      합m += g.m; 합l += g.l; 합운 += g.n;
+      var 비밀 = g.st ? g.ms / g.st : 0, 비지 = g.st ? g.ls / g.st : 0;
+      var 값 = 종류 === '밀착' ? 비밀 : 종류 === '지연' ? 비지 : (g.m + g.l);
+      var 뽑힘 = 종류 === '밀착' ? g.m > 0 : 종류 === '지연' ? g.l > 0 : (g.m + g.l) > 0;
+      var 글 = 뽑힘 ? (종류 === '지연' ? '■' : 종류 === '밀착' ? '▼' : (g.m + g.l)) : '';
+      if (인쇄 && !뽑힘) { var 단 = 히트단계(종류, 값); 글 = 단 ? String(단) : ''; }   // 흑백 인쇄 대비: 진하기를 숫자로
+      var 도움 = 날짜꼴(d) + ' ' + 요일(d) + ' · ' + 이름 + ' · 운행 ' + g.n + '건' +
+                 ' · 붙은 ' + Math.round(비밀 * 1000) / 10 + '% · 벌어진 ' + Math.round(비지 * 1000) / 10 + '%' +
+                 (g.m ? ' · 밀착 선정 ' + g.m + '회' : '') + (g.l ? ' · 지연 선정 ' + g.l + '회' : '');
+      h += '<td class="' + (뽑힘 ? 'pick' : '') + '" style="background:' + 히트색(종류, 값, true) + '" title="' + 도움 + '">' + 글 + '</td>';
+    });
+    h += '<td class="hsum">운행 ' + 합운 + ' · ▼' + 합m + ' · ■' + 합l + '</td></tr>';
+  });
+
+  // 맨 아래: 그날 전체 평균(세로줄이 진한지 바로 보라고)
+  h += '<tr><th class="hname" style="color:var(--muted)">그날 전체</th>';
+  날목록.forEach(function (d, i) {
+    if (i > 0 && d.slice(4, 6) !== 날목록[i - 1].slice(4, 6)) h += '<td class="sep"></td>';
+    var ms = 0, ls = 0, st = 0, mm = 0, ll = 0, 있 = false;
+    기사순.forEach(function (id) {
+      var g = 칸[id + '|' + d]; if (!g) return;
+      있 = true; ms += g.ms; ls += g.ls; st += g.st; mm += g.m; ll += g.l;
+    });
+    if (!있) { h += '<td class="none"></td>'; return; }
+    var 비밀 = st ? ms / st : 0, 비지 = st ? ls / st : 0;
+    var 값 = 종류 === '밀착' ? 비밀 : 종류 === '지연' ? 비지 : (mm + ll);
+    var 도움 = 날짜꼴(d) + ' ' + 요일(d) + ' 전체 · 붙은 ' + Math.round(비밀 * 1000) / 10 + '% · 벌어진 ' + Math.round(비지 * 1000) / 10 +
+               '% · 밀착 선정 ' + mm + ' · 지연 선정 ' + ll;
+    var 전체글 = 인쇄 ? (히트단계(종류, 값) ? String(히트단계(종류, 값)) : '') : '';   // 흑백 인쇄 대비: 그날 전체 줄도 숫자로
+    h += '<td style="background:' + 히트색(종류, 값, true) + '" title="' + 도움 + '">' + 전체글 + '</td>';
+  });
+  h += '<td class="hsum">기사 전체 평균</td></tr>';
+  h += '</table></div>';
+  if (인쇄) h += '</div>';
+  return h;
+}
+
+// [v20261111-03] 히트맵만 종이에 뽑습니다.
+// 화면의 히트맵은 스크롤 상자 안에 있어 그대로 인쇄하면 잘립니다.
+// 그래서 인쇄 전용 영역(#printArea)에 스크롤 없는 히트맵을 새로 그려 넣고 인쇄창을 엽니다.
+function 히트맵인쇄(A, 노선) {
+  document.body.classList.add('heatprinting');                 // 인쇄 규칙에서 히트맵 색을 살리는 표시
+  $('printArea').innerHTML = 히트맵만들기(A, true, 노선);
+  function 되돌리기() {
+    document.body.classList.remove('heatprinting');
+    $('printArea').innerHTML = '';
+    window.removeEventListener('afterprint', 되돌리기);
+  }
+  window.addEventListener('afterprint', 되돌리기);
+  setTimeout(되돌리기, 60000);                                  // 인쇄창 신호를 못 받는 브라우저 대비
+  window.print();
 }
 
 // ---- (4) 화면 ----
@@ -3392,12 +3600,18 @@ function 기사분석칸그리기(r, 쌓지않음) {
       '<td>' + b.l + '회 · ' + Math.round(b.l / b.n * 1000) / 10 + '%</td><td>' + 비율칸(b.벌어짐비율, b.지배수, b.지순위) + '</td>' +
       '<td>' + 앞칸 + '</td><td>' + (선정날칸 || '-') + '</td></tr>';
   });
-  html += '</table></div><div class="row"><button id="driversave" class="ghost small" type="button" title="이 컴퓨터에 쌓인 모든 노선의 기록을 파일 하나로 저장합니다. 기사 이름은 없고 ID 번호만 들어 있습니다.">💾 전체 기록 파일로 저장</button>' +
+  html += '</table></div>';
+  html += 히트맵만들기(A);                                           // [v20261111-02] 기사 x 날짜 히트맵
+  html += '<div class="row"><button id="driversave" class="ghost small" type="button" title="이 컴퓨터에 쌓인 모든 노선의 기록을 파일 하나로 저장합니다. 기사 이름은 없고 ID 번호만 들어 있습니다.">💾 전체 기록 파일로 저장</button>' +
     '<button id="driverload" class="ghost small" type="button" title="저장해 둔 기록 파일을 불러와 지금 기록에 합칩니다.">📂 기록 파일 불러오기</button>' +
     '<input id="driverfile" type="file" accept=".json" hidden>' +
     '<button id="driverclear" class="ghost small" type="button">이 노선의 쌓인 기록 지우기</button></div><p id="drivermsg" class="note" role="status"></p>';
   상자.innerHTML = html;
   $('driverperiod').addEventListener('change', function () { 분석기간선택 = this.value; 기사분석칸그리기(r, true); });
+  var 종류상자 = $('heatkind');                                      // [v20261111-02] 히트맵에서 볼 종류 바꾸기
+  if (종류상자) 종류상자.addEventListener('change', function () { 히트맵종류 = this.value; 기사분석칸그리기(r, true); });
+  var 인쇄단추 = $('heatprintbtn');                                  // [v20261111-03] 히트맵만 인쇄
+  if (인쇄단추) 인쇄단추.addEventListener('click', function () { 히트맵인쇄(A, 노선); });
   $('driverclear').addEventListener('click', function () {
     if (!confirm('이 노선에 쌓인 기사 분석 기록을 모두 지울까요? (지운 뒤 CSV를 다시 올리면 그 CSV의 날짜부터 다시 쌓입니다)')) return;
     delete 기사일지[노선]; 기사일지저장실패 = !저장쓰기(기사일지_열쇠, 기사일지); 기사분석칸그리기(r, true);
