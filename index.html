@@ -1,10 +1,11 @@
 <!doctype html>
-<!-- ★ 프로그램 버전: v20261111-04  (파일 이름의 번호와 같습니다) -->
+<!-- ★ 프로그램 버전: v20261111-08  (파일 이름의 번호와 같습니다) -->
 <html lang="ko">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="program-version" content="v20261111-04">
+<meta name="program-version" content="v20261111-08">
+<link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PHJlY3QgeD0iMy41IiB5PSIzLjUiIHdpZHRoPSIyNSIgaGVpZ2h0PSIyMCIgcng9IjMuNSIgZmlsbD0iIzBiNmI0ZiIvPjxyZWN0IHg9IjYuNSIgeT0iNy41IiB3aWR0aD0iOCIgaGVpZ2h0PSI2LjUiIHJ4PSIxLjIiIGZpbGw9IiNmZmZmZmYiLz48cmVjdCB4PSIxNy41IiB5PSI3LjUiIHdpZHRoPSI4IiBoZWlnaHQ9IjYuNSIgcng9IjEuMiIgZmlsbD0iI2ZmZmZmZiIvPjxyZWN0IHg9IjYuNSIgeT0iMTciIHdpZHRoPSIxOSIgaGVpZ2h0PSIyLjgiIHJ4PSIxLjQiIGZpbGw9IiM4ZmQ5YmQiLz48Y2lyY2xlIGN4PSIxMCIgY3k9IjI2IiByPSIzLjIiIGZpbGw9IiMxMzMwMmEiLz48Y2lyY2xlIGN4PSIyMiIgY3k9IjI2IiByPSIzLjIiIGZpbGw9IiMxMzMwMmEiLz48L3N2Zz4=">   <!-- [v20261111-05] 탭에 뜨는 버스 아이콘. 그림 파일을 따로 두지 않고 HTML 안에 넣어, 파일 한 장만 들고 다녀도 됩니다 -->
 <title>운행기록 점검기 (사내규정판)</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap">
 <style>
@@ -197,6 +198,12 @@ details.fold[open]>summary::before{content:'▼'}             /* 펼치면 ▼ �
 details.fold>summary h2{display:inline}                      /* 제목을 ▶ 옆에 나란히 */
 details.fold[open]>summary{margin-bottom:10px}               /* 펼쳤을 때 제목과 내용 사이 여백 */
 #printArea{display:none}
+/* [v20261111-08] 결과 맨 위 '보기' 막대. position:sticky = 화면을 굴려도 맨 위에 붙어 따라옵니다 */
+.viewbar{position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+         padding:8px 12px;margin-bottom:10px;background:var(--panel,#fff);
+         border:1px solid var(--line,#ccc);box-shadow:0 1px 4px rgba(0,0,0,.10)}
+.viewbar select{max-width:16em}
+.viewbar .now{font-weight:700}
 /* [v20261111-04] 상담 카드 높이를 인쇄와 같은 조건으로 재는 동안만 쓰는 상태 (화면 밖에 숨겨 놓고 잽니다) */
 body.cardmeasure #printArea{display:block;position:absolute;left:-10000px;top:0;width:186mm;visibility:hidden}
 body.cardmeasure #printArea .sheet{border:0;border-radius:0;padding:0}
@@ -295,6 +302,12 @@ body.cardmeasure #printArea .sheet{border:0;border-radius:0;padding:0}
   </section>
 
   <section id="out" hidden class="wrap">
+    <!-- [v20261111-08] 보기 고르는 막대. 칸 하나만 골라 보면 화면이 짧아집니다 -->
+    <div class="panel viewbar" id="viewbar">
+      <label for="viewpick"><b>보기</b></label>
+      <select id="viewpick" title="볼 칸을 고릅니다. '전체 보기'로 되돌릴 수 있습니다"></select>
+      <span class="note" id="viewhint" style="margin:0"></span>
+    </div>
     <!-- [v20261107-01] 맨 위 결론 칸: 결론 3~5줄 + 확인할 회차(최대 10건) + 지켜볼 기사 -->
     <div class="panel" id="conclusion">
       <h2>이번 파일 결론</h2>
@@ -343,7 +356,23 @@ body.cardmeasure #printArea .sheet{border:0;border-radius:0;padding:0}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script>
 // =====================================================================
-// 운행기록 점검기 (사내규정판)   버전: v20261111-04   ← 날짜-일련번호
+// 운행기록 점검기 (사내규정판)   버전: v20261111-08   ← 날짜-일련번호
+// [v20261111-08 변경] 결과 맨 위에 '보기' 드롭다운을 붙였습니다(대시보드형).
+//   칸이 열 개 가까이 세로로 이어져 스크롤이 길던 것을, 칸 하나만 골라 볼 수 있게 했습니다.
+//   막대는 화면을 굴려도 맨 위에 붙어 따라옵니다. 기본값은 '전체 보기'라 예전과 똑같이 보이고,
+//   고른 값은 이 컴퓨터에 기억해 둡니다. 판정 과정은 눌러서 열릴 때 자동으로 그 칸으로 넘어갑니다.
+//   판정 계산은 건드리지 않았습니다.
+// [v20261111-07 변경·오류 바로잡음] 기준 간격을 설명할 때 숫자 하나만 보여 주던 것을 정류장별 범위로 고쳤습니다.
+//   기준은 원래부터 정류장마다 다시 계산하는데(그 정류장을 지난 시각 앞뒤 2시간), 저장은 첫 정류장 값 하나만
+//   했습니다. 그 값으로 글을 쓰다 보니 같은 화면에서 그래프는 '기준 16.4~19.1분'인데 글은 '16.4분'이라
+//   서로 어긋났습니다. 면담 때 기사가 중간 정류장 숫자로 따지면 설명이 막히는 자리였습니다.
+//   이제 글도 그래프와 같은 자료(정류장별 기준)를 써서 범위로 적습니다. 판정 계산은 손대지 않아 결과는 그대로입니다.
+// [v20261111-06 변경] 기사 개인 분석에 '날짜보정 ×배'를 더했습니다.
+//   그날 전체가 얼마나 나빴는지(그날 계수)를 먼저 구해 기대값에 곱하므로, 눈 온 날·공사 날에 많이
+//   근무한 기사가 불리해지지 않습니다. 기존 '동료 ×배'는 그대로 두고 옆에 나란히 보여 줍니다.
+//   선정 여부(규정 판정)와 분류 계산은 건드리지 않았습니다.
+// [v20261111-05 변경] 브라우저 탭에 버스 아이콘이 뜨게 했습니다. 아이콘 그림을 HTML 안에 직접 넣어서
+//   파일 한 장만 옮겨도 아이콘이 따라갑니다(그림 파일을 따로 챙길 필요 없음). 기능·계산은 바뀐 것이 없습니다.
 // [v20261111-04 변경] 상담 카드가 기사에 따라 두 장으로 넘어가던 것을 한 장으로 맞췄습니다.
 //   인쇄 직전에 카드 높이를 실제 인쇄 폭으로 재 보고, 한 쪽을 넘는 카드만 그만큼 줄입니다(넘지 않으면 그대로).
 //   너무 많이 줄여야 하는 카드(배율 0.70 미만)는 글씨가 작아지니 그냥 두 장으로 두고 화면에 알려 줍니다.
@@ -431,7 +460,7 @@ body.cardmeasure #printArea .sheet{border:0;border-radius:0;padding:0}
 //  5) 예외: 내가 '밀착'인데 내 앞차가 '지연' 선정이면, 또는 내가 '지연'인데 앞차가
 //     '밀착' 선정이면 선정에서 빼줍니다(예외 인정).
 // =====================================================================
-var VERSION = 'v20261111-04';
+var VERSION = 'v20261111-08';
 
 // ---------- [기준값] 여기 숫자만 바꾸면 점검이 더 엄격/느슨해집니다 ----------
 var 지연_배수 = 1.7;          // 기준의 1.7배 초과면 '지연 정류장'
@@ -1609,9 +1638,33 @@ function 짧은구간(nums, 판) {
 }
 // (4) 장면 설명 문장. 예) "9/26(토) 06:27 출발 오전 1회차, 정류장 94곳 중 55곳에서 앞차와 1.8분보다 가깝게 붙었습니다. ..."
 function 장면종류(x) { return x._선정 || (x.밀착정류장 >= x.지연정류장 ? '밀착' : '지연'); }   // 선정이면 그 종류, 아니면 더 많은 쪽
+// [v20261111-07] 기준 간격은 정류장마다 다시 계산됩니다(그 정류장을 지난 시각 앞뒤 2시간).
+// 그래서 회차 하나에 숫자 하나가 아니라 '범위'가 맞습니다.
+// 이 함수는 그 회차에서 실제로 쓰인 기준들의 최소~최대를 돌려줍니다.
+// (그래프가 쓰는 자료와 같은 자료라, 글과 그림이 서로 어긋나지 않습니다)
+function 기준범위(x) {
+  var 하나 = +x.기준_분;
+  var 열 = (typeof 마지막결과 !== 'undefined' && 마지막결과) ? 장면열찾기(마지막결과, x) : null;
+  var v = [];
+  if (열 && 열.칸) 열.칸.forEach(function (c) { if (c && c.기준 != null) v.push(c.기준); });
+  if (!v.length) {                                   // 정류장별 자료를 못 찾으면 예전처럼 숫자 하나로
+    return { 최소: 하나, 최대: 하나, 변함: false,
+             글: function (배) { return String(소수1(하나 * (배 || 1))); } };   // 항상 글자로 돌려줍니다
+  }
+  var a = Math.min.apply(null, v), b = Math.max.apply(null, v);
+  var 변함 = (b - a) >= 0.5;                          // 0.5분 미만 차이는 범위로 쓰지 않습니다(그래프와 같은 기준)
+  return {
+    최소: a, 최대: b, 변함: 변함,
+    글: function (배) {                               // 배 = 곱할 비율(밀착 0.3 등). 없으면 기준 그대로
+      배 = 배 || 1;
+      return 변함 ? 소수1(a * 배) + '~' + 소수1(b * 배) : String(소수1(a * 배));   // 항상 글자로
+    }
+  };
+}
+
 function 장면문장(x) {
   var 종류 = 장면종류(x), 곳 = 종류 === '밀착' ? x.밀착정류장 : x.지연정류장;
-  var 기준 = +x.기준_분, 선 = 소수1(기준 * (종류 === '밀착' ? 밀착_배수 : 지연_배수));
+  var 기준 = +x.기준_분, 선 = 기준범위(x).글(종류 === '밀착' ? 밀착_배수 : 지연_배수);   // [v20261111-07] 정류장마다 기준이 달라 범위로
   var 몇곳부터 = Math.floor(선정비율(x._차량수) * x._정류장수 + 1e-9) + 1;           // 결과설명과 같은 셈: 이 개수부터 선정
   var 예외 = String(x.결과).indexOf('예외') > 0;
   var 구간 = 짧은구간(x._상세.filter(function (d) { return d.종류 === 종류; }).map(function (d) { return d.순번; }), 마지막결과 && 마지막결과.격자 && 마지막결과.격자[x.날짜]);
@@ -1635,16 +1688,19 @@ function 책임문장(x) {
 // (5-1) [v20261107-04] '왜 이렇게 나왔나요?' — 결과설명(소장용)의 순서를 기사님께 드리는 말투로 4줄로 줄였습니다.
 //   ① 기준 → ② 세는 법(이 회차 몇 곳) → ③ 선정 한도 → ④ 판정과 예외 검토. 숫자는 결과설명과 같은 방법으로 꺼냅니다.
 function 판정순서(x) {
-  var 기준 = +x.기준_분, 밀선 = 소수1(기준 * 밀착_배수), 지선 = 소수1(기준 * 지연_배수);
+  var 기준 = +x.기준_분, R기 = 기준범위(x);                                          // [v20261111-07]
+  var 밀선 = R기.글(밀착_배수), 지선 = R기.글(지연_배수);
   var 비율 = Math.round(선정비율(x._차량수) * 100);                                   // 그날 운행 차량 수로 정해진 비율(%)
   var 한도 = 소수1(선정비율(x._차량수) * x._정류장수);                                 // 선정 한도(소수일 수 있음)
   var 몇곳부터 = Math.floor(선정비율(x._차량수) * x._정류장수 + 1e-9) + 1;            // 이 개수부터 선정
   var 종류 = 장면종류(x), 곳 = 종류 === '밀착' ? x.밀착정류장 : x.지연정류장, 이름 = 종류 === '밀착' ? '붙음' : '벌어짐';
   var 예외 = String(x.결과).indexOf('예외') > 0;
   var 줄 = [];
-  줄.push('<b>기준</b> — ' + (기준방식 === '시각대' ? '이 버스가 지나간 시각 앞뒤 2시간 동안 실제 앞뒤 차 간격의 중앙값(평균 배차간격)은 <b>' : '같은 회차 묶음(' + x.회차 + '회차) 버스들의 평균 배차간격은 <b>') + 기준 + '분</b>입니다.');
-  줄.push('<b>세는 법</b> — 정류장마다 앞차와의 간격을 재서, ' + 밀선 + '분(평균의 ' + Math.round(밀착_배수 * 100) + '%)보다 좁으면 「붙음」, ' +
-    지선 + '분(평균의 ' + Math.round(지연_배수 * 100) + '%)보다 넓으면 「벌어짐」으로 셉니다. 이 회차는 붙음 <b>' + x.밀착정류장 + '곳</b>, 벌어짐 <b>' + x.지연정류장 + '곳</b>입니다.');
+  줄.push('<b>기준</b> — ' + (기준방식 === '시각대'
+    ? '이 버스가 <b>각 정류장을 지나간 시각</b> 앞뒤 2시간 동안 실제 앞뒤 차 간격의 중앙값입니다. 정류장마다 다시 재므로 이 회차에서는 <b>' + R기.글() + '분</b>이었습니다.'
+    : '같은 회차 묶음(' + x.회차 + '회차) 버스들의 평균 배차간격은 <b>' + 기준 + '분</b>입니다.'));
+  줄.push('<b>세는 법</b> — 정류장마다 앞차와의 간격을 재서, <b>그 정류장 기준</b>의 ' + Math.round(밀착_배수 * 100) + '%(' + 밀선 + '분)보다 좁으면 「붙음」, ' +
+    Math.round(지연_배수 * 100) + '%(' + 지선 + '분)보다 넓으면 「벌어짐」으로 셉니다. 이 회차는 붙음 <b>' + x.밀착정류장 + '곳</b>, 벌어짐 <b>' + x.지연정류장 + '곳</b>입니다.');
   줄.push('<b>선정 한도</b> — ' + (x._차량수근거 === '정상대수' ? '이 노선의 정상 운행 대수가 ' : '이날 운행한 차가 ') + x._차량수 + '대라서, 정류장 ' + x._정류장수 + '곳의 ' + 비율 + '%인 <b>' + 한도 + '곳</b>이 한도입니다. 이것을 넘으면(' + 몇곳부터 + '곳부터) 선정입니다.');
   var 끝;
   if (!x._선정 && !예외) 끝 = 이름 + ' ' + 곳 + '곳으로 한도를 넘지 않아 <b>선정이 아닙니다</b>.';
@@ -1967,16 +2023,20 @@ function 결과설명(id, 키) {
   현재상세 = { id: id, 종류: '결과', 키: 키, 텍스트: 마지막텍스트 };
   var x = 마지막결과.회차기록.filter(function (z) { return z.사원ID === id && (z.날짜 + '|' + z.출발 + '|' + z.회차) === 키; })[0];
   if (!x) { $('detailpanel').hidden = true; return; }
-  var 기준 = +x.기준_분, 밀선 = 소수1(기준 * 밀착_배수), 지선 = 소수1(기준 * 지연_배수);
+  var 기준 = +x.기준_분, R기 = 기준범위(x);                                          // [v20261111-07]
+  var 밀선 = R기.글(밀착_배수), 지선 = R기.글(지연_배수);
   var 비율 = Math.round(선정비율(x._차량수) * 100), 최고 = Math.max(x.지연정류장, x.밀착정류장);
   var 위반한도 = 소수1(선정비율(x._차량수) * x._정류장수), 몇곳부터 = Math.floor(선정비율(x._차량수) * x._정류장수 + 1e-9) + 1;   // 실제 위반한도(소수 가능)과 '몇 곳부터 선정'인지
   var 종류 = x._선정 || (String(x.결과).indexOf('밀착') === 0 ? '밀착' : (String(x.결과).indexOf('지연') === 0 ? '지연' : ''));
   var 예외 = String(x.결과).indexOf('예외') > 0;
   var 앞 = x._앞;
   var 줄 = [];
-  줄.push('<li><b>기준 간격</b> — ' + (기준방식 === '시각대' ? '이 버스가 지나간 시각 앞뒤 2시간 동안 실제 앞뒤 차 간격의 중앙값은 <b>' : '이 묶음(' + x.회차 + '회차)의 평균 배차간격은 <b>') + 기준 + '분</b>입니다.</li>');
-  줄.push('<li><b>밀착·지연 기준</b> — 앞차와의 간격이 ' + 기준 + '분 × ' + Math.round(밀착_배수 * 100) + '% = <b>' + 밀선 + '분 미만</b>이면 밀착 정류장, ' +
-    기준 + '분 × ' + Math.round(지연_배수 * 100) + '% = <b>' + 지선 + '분 초과</b>이면 지연 정류장으로 셉니다.</li>');
+  줄.push('<li><b>기준 간격</b> — ' + (기준방식 === '시각대'
+    ? '이 버스가 <b>각 정류장을 지나간 시각</b> 앞뒤 2시간 동안 실제 앞뒤 차 간격의 중앙값입니다. <b>정류장마다 다시 재므로</b> 이 회차에서는 <b>' + R기.글() + '분</b>이었습니다.'
+    : '이 묶음(' + x.회차 + '회차)의 평균 배차간격은 <b>' + 기준 + '분</b>입니다.') + '</li>');
+  줄.push('<li><b>밀착·지연 기준</b> — 앞차와의 간격이 <b>그 정류장 기준</b>의 ' + Math.round(밀착_배수 * 100) + '%(<b>' + 밀선 + '분</b>) 미만이면 밀착 정류장, ' +
+    Math.round(지연_배수 * 100) + '%(<b>' + 지선 + '분</b>) 초과이면 지연 정류장으로 셉니다.' +
+    (R기.변함 ? ' 아래 그래프의 점선이 정류장마다 오르내리는 것이 이 때문입니다.' : '') + '</li>');
   줄.push('<li><b>이 회차에서 기준을 벗어난 정류장</b> — 도착 정류장 ' + x._정류장수 + '곳 중 밀착 <b>' + x.밀착정류장 + '곳</b>, 지연 <b>' + x.지연정류장 + '곳</b>입니다.</li>');
   줄.push('<li><b>선정 한도</b> — ' + (x._차량수근거 === '정상대수' ? '이 노선의 정상 운행 대수(⑤칸)가 ' : '그날 운행 차량이 ') + x._차량수 + '대라서 선정 비율은 ' + 비율 + '%입니다. ' + x._정류장수 + '곳 × ' + 비율 + '% = <b>' + 위반한도 + '곳</b>. 기준을 벗어난 정류장이 ' + 위반한도 + '곳을 <b>넘으면</b>(' + 몇곳부터 + '곳부터) 선정입니다. ' +
     '이 회차의 가장 많은 위반은 ' + 최고 + '곳으로 선정 한도의 <b>' + x.위반한도대비 + '</b>입니다.</li>');
@@ -2013,6 +2073,7 @@ function 결과설명(id, 키) {
     })() +
     '<p class="note" style="font-weight:700;margin-top:10px">결론: ' + 결론 + '. 앞차가 늦어서 뒤차가 따라붙을 수도 있으니 기사 한 사람의 책임으로만 보지 마세요.</p>';
   $('detailpanel').hidden = false;
+  보기메뉴갱신('detailpanel');                                      // [v20261111-08] 열렸으니 이 칸으로 넘어갑니다
   $('detailpanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
@@ -2046,6 +2107,7 @@ function 상세보기(id, 종류, 키, 스크롤안함) {
     (요약.length ? '<ul class="easy">' + 요약.join('') + '</ul>' : '<p>' + 종류 + ' 정류장이 없습니다.</p>') +
     (줄.length ? '<div class="scroll" style="max-height:60vh"><table id="tdetail"><tr><th>날짜</th><th>요일</th><th>출발</th><th>회차</th><th>순번</th><th>정류장</th><th>내 통과</th><th>앞차 통과</th><th>앞차와 간격(분)</th><th>평균 배차간격(분)</th><th>기준선</th><th>앞차 차량</th><th>앞차 기사</th></tr>' + 줄.join('') + '</table></div>' : '');
   $('detailpanel').hidden = false;
+  보기메뉴갱신('detailpanel');                                      // [v20261111-08] 열렸으니 이 칸으로 넘어갑니다
   if (!스크롤안함) $('detailpanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
@@ -2436,6 +2498,7 @@ function 보여주기(r) {
   카드그리기(r, 감시);
   $('ver').textContent = VERSION;
   $('out').hidden = false;
+  보기메뉴갱신();                                                   // [v20261111-08] 칸이 다 그려진 뒤 보기 메뉴를 만듭니다
   표복사연결();
 }
 
@@ -2554,6 +2617,8 @@ function 이름표읽기(f) {
   fr.readAsArrayBuffer(f);
 }
 
+// [v20261111-08] 보기 드롭다운: 고른 칸만 보여 주고 화면을 맨 위로 올립니다
+$('viewpick').addEventListener('change', function () { 보기적용(this.value); try { window.scrollTo(0, 0); } catch (e) {} });
 $('file').addEventListener('change', function (e) { if (e.target.files[0]) 파일읽기(e.target.files[0]); });
 $('namefile').addEventListener('change', function (e) { if (e.target.files[0]) 이름표읽기(e.target.files[0]); });
 var 감시지연 = null;
@@ -3243,6 +3308,10 @@ var 기사일지_열쇠 = 'bis_기사일지_v2';   // v1(하루 점수 방식)�
 var 분석_최소운행 = 15;          // 기간 안 운행이 이보다 적은 기사는 '표본 부족' (한 달에 보통 60~70건)
 var 분석_최소날수 = 5;           // 기간 안 관찰한 날이 이보다 적은 기사도 '표본 부족'
 var 분석_동료_최소 = 5;          // 같은 조건 기사가 이보다 적으면 그 조건은 동료 비교에서 뺍니다
+// [v20261111-06] 날짜 효과 빼기에 쓰는 값들
+var 분석_날동료_최소 = 3;        // 그날 같이 일한 다른 기사가 이보다 적으면, 그날은 보정하지 않습니다(비교 상대가 너무 적어서)
+var 분석_날계수_최소 = 0.34;     // 그날 계수를 1/3배 ~ 3배 안으로 묶습니다.
+var 분석_날계수_최대 = 3;        //   하루가 유별나다고 해서 한 달 결과가 통째로 뒤집히면 안 되기 때문입니다.
 var 분석_반복_선정 = 2;          // 한 기간에 같은 종류로 이 횟수 이상 선정되면 '반복 선정'
 var 분석_경계_배수 = 1.5;        // 선정은 아니지만 정류장 비율이 동료 기대값의 이 배수 이상이고
 var 분석_경계_상위 = 20;         // 기사들 중 상위 이 % 안이면 '경계 반복'
@@ -3313,9 +3382,10 @@ function 기사일지쌓기(r) {
 // ---- (2) 기간 하나를 집계합니다: 기사별 합계와 같은 조건 동료 비교 ----
 // 칸들 = 기간 안의 하루 합계들. 반환: { 기사: {id: 합계}, 조건: {조건: 합계}, 순위용 }
 function 기간집계(칸들) {
-  var 기사 = {}, 조건 = {};
+  // [v20261111-06] 날 = 날짜별 전체 합계(그날이 얼마나 나빴는지 보려고), 전체 = 기간 전체 합계
+  var 기사 = {}, 조건 = {}, 날 = {}, 전체 = { ms: 0, ls: 0, st: 0 };
   칸들.forEach(function (c) {
-    var b = 기사[c.id] = 기사[c.id] || { id: c.id, n: 0, m: 0, l: 0, ms: 0, ls: 0, st: 0, 날: {}, 조건별: {}, 선정날: [] };
+    var b = 기사[c.id] = 기사[c.id] || { id: c.id, n: 0, m: 0, l: 0, ms: 0, ls: 0, st: 0, 날: {}, 조건별: {}, 선정날: [], 칸목록: [], 날별: {} };
     b.n += c.n; b.m += c.m; b.l += c.l; b.ms += c.ms; b.ls += c.ls; b.st += c.st; b.날[c.d] = 1;
     var 키 = c.g + ' ' + c.j;
     var 조 = b.조건별[키] = b.조건별[키] || { n: 0, ms: 0, ls: 0, st: 0 };
@@ -3323,8 +3393,16 @@ function 기간집계(칸들) {
     var t = 조건[키] = 조건[키] || { ms: 0, ls: 0, st: 0, 기사: {} };
     t.ms += c.ms; t.ls += c.ls; t.st += c.st; t.기사[c.id] = 1;
     if (c.m > 0 || c.l > 0) b.선정날.push(c);
+    // [v20261111-06] 날짜 보정에 쓸 자료: 내 하루치 / 그날 전체 / 기간 전체
+    b.칸목록.push(c);
+    var 내날 = b.날별[c.d] = b.날별[c.d] || { ms: 0, ls: 0, st: 0 };
+    내날.ms += c.ms; 내날.ls += c.ls; 내날.st += c.st;
+    var w = 날[c.d] = 날[c.d] || { ms: 0, ls: 0, st: 0, 기사: {} };
+    w.ms += c.ms; w.ls += c.ls; w.st += c.st; w.기사[c.id] = 1;
+    전체.ms += c.ms; 전체.ls += c.ls; 전체.st += c.st;
   });
   Object.keys(조건).forEach(function (키) { 조건[키].기사수 = Object.keys(조건[키].기사).length; });
+  Object.keys(날).forEach(function (d) { 날[d].기사수 = Object.keys(날[d].기사).length; });
   var 목록 = Object.keys(기사).map(function (id) {
     var b = 기사[id];
     b.날수 = Object.keys(b.날).length;
@@ -3342,6 +3420,36 @@ function 기간집계(칸들) {
     b.붙음비율 = b.st ? b.ms / b.st : 0; b.벌어짐비율 = b.st ? b.ls / b.st : 0;
     b.밀배수 = (비교정류장 > 0 && 기대밀 > 0) ? b.ms / 기대밀 : null;   // 동료 대비 몇 배 (1.0 = 동료와 같음)
     b.지배수 = (비교정류장 > 0 && 기대지 > 0) ? b.ls / 기대지 : null;
+
+    // ---- [v20261111-06] 날짜 효과 빼기 ----
+    // 그날 전체가 나빴으면 그날 근무한 사람은 모두 나쁘게 나옵니다.
+    // 그래서 '그날이 평소보다 몇 배 나빴는지'를 구해 기대값에 곱해 둡니다.
+    // 나쁜 날에는 기대값도 같이 올라가므로, 그날 탓이 빠지고 그 기사 몫만 남습니다.
+    var 남ms전 = 전체.ms - b.ms, 남ls전 = 전체.ls - b.ls, 남st전 = 전체.st - b.st;
+    var 기준밀 = 남st전 > 0 ? 남ms전 / 남st전 : 0;      // 나를 뺀 기간 전체 평소 비율
+    var 기준지 = 남st전 > 0 ? 남ls전 / 남st전 : 0;
+    function 그날계수(날짜, 밀착이냐) {
+      var w = 날[날짜];
+      if (!w || (w.기사수 - 1) < 분석_날동료_최소) return 1;          // 그날 동료가 너무 적으면 보정하지 않음
+      var 내 = b.날별[날짜] || { ms: 0, ls: 0, st: 0 };
+      var 남st = w.st - 내.st; if (남st <= 0) return 1;
+      var 기준 = 밀착이냐 ? 기준밀 : 기준지; if (!(기준 > 0)) return 1;
+      var 그날비율 = (밀착이냐 ? (w.ms - 내.ms) : (w.ls - 내.ls)) / 남st;
+      return Math.min(분석_날계수_최대, Math.max(분석_날계수_최소, 그날비율 / 기준));
+    }
+    var 기대밀보 = 0, 기대지보 = 0, 보정한날 = {};
+    b.칸목록.forEach(function (c) {
+      var 키 = c.g + ' ' + c.j, t = 조건[키], 나 = b.조건별[키];
+      if (!t || t.기사수 < 분석_동료_최소) return;                     // 보정 안 한 쪽과 같은 조건에서만 계산
+      var 남정류장 = t.st - 나.st; if (남정류장 <= 0) return;
+      var fm = 그날계수(c.d, true), fl = 그날계수(c.d, false);
+      기대밀보 += c.st * ((t.ms - 나.ms) / 남정류장) * fm;
+      기대지보 += c.st * ((t.ls - 나.ls) / 남정류장) * fl;
+      if (fm !== 1 || fl !== 1) 보정한날[c.d] = 1;
+    });
+    b.밀보정배수 = (비교정류장 > 0 && 기대밀보 > 0) ? b.ms / 기대밀보 : null;
+    b.지보정배수 = (비교정류장 > 0 && 기대지보 > 0) ? b.ls / 기대지보 : null;
+    b.보정날수 = Object.keys(보정한날).length;                         // 몇 날이 보정됐는지(설명용)
     return b;
   });
   // 순위(상위 몇 %): 표본이 충분한 기사끼리 배수가 큰 순서
@@ -3536,6 +3644,61 @@ function 히트맵인쇄(A, 노선) {
   window.print();
 }
 
+// ================= [v20261111-08] 보기 메뉴 (대시보드형) =================
+// 결과 칸이 많아 스크롤이 길어서, 맨 위에서 칸 하나를 골라 볼 수 있게 합니다.
+var 보기_열쇠 = 'bis_보기_v1';
+
+// 칸마다 변하지 않는 이름표를 만듭니다.
+// 번호(몇 번째 칸)로 기억하면 칸이 생겼다 없어질 때 엉뚱한 칸이 열리므로 id를 씁니다.
+function 보기표(el, 이름) { return el.id || ('이름:' + 이름); }
+
+function 보기제목(el) {
+  if (el.id === 'detailpanel') return '판정 과정';                 // 제목이 기사 이름으로 바뀌는 칸이라 따로 정합니다
+  var h = el.querySelector('h2'); if (!h) return '';
+  var t = (h.textContent || '').trim().split('—')[0].split('(')[0].trim();
+  return t.length > 22 ? t.slice(0, 22) + '…' : t;
+}
+
+// 지금 화면에 있는 칸들을 모읍니다 (숨겨진 칸과 보기 막대 자신은 뺍니다)
+function 보기칸들() {
+  var out = $('out'); if (!out) return [];
+  var 목록 = [];
+  Array.prototype.forEach.call(out.children, function (el) {
+    if (el.id === 'viewbar' || el.hidden) return;
+    var 이름 = 보기제목(el); if (!이름) return;                     // 제목(h2)이 없는 꼬리 칸은 메뉴에 넣지 않습니다
+    목록.push({ el: el, 이름: 이름, 표: 보기표(el, 이름) });
+  });
+  return 목록;
+}
+
+function 보기적용(값) {
+  var out = $('out'); if (!out) return;
+  var 목록 = 보기칸들(), 전체 = (값 === '전체');
+  목록.forEach(function (it) { it.el.style.display = (전체 || it.표 === 값) ? '' : 'none'; });
+  // 제목이 없는 꼬리 칸(표 모음·안내문)은 '전체 보기'일 때만 보여 줍니다
+  Array.prototype.forEach.call(out.children, function (el) {
+    if (el.id === 'viewbar' || el.hidden) return;
+    if (!보기제목(el)) el.style.display = 전체 ? '' : 'none';
+  });
+  var 힌트 = $('viewhint');
+  if (힌트) 힌트.textContent = 전체 ? '칸 하나를 고르면 그 칸만 보여 화면이 짧아집니다'
+                                   : "다시 다 보시려면 '전체 보기'를 고르세요";
+  try { localStorage.setItem(보기_열쇠, 값); } catch (e) {}
+}
+
+function 보기메뉴갱신(고를값) {
+  var sel = $('viewpick'); if (!sel) return;
+  var 목록 = 보기칸들();
+  var 현재 = 고를값 != null ? String(고를값)
+           : (sel.value || (function () { try { return localStorage.getItem(보기_열쇠) || '전체'; } catch (e) { return '전체'; } })());
+  sel.innerHTML = '<option value="전체">전체 보기</option>' +
+    목록.map(function (it) { return '<option value="' + it.표 + '">' + it.이름 + '</option>'; }).join('');
+  var 있음 = Array.prototype.some.call(sel.options, function (o) { return o.value === 현재; });
+  if (!있음) 현재 = '전체';                                        // 고른 칸이 사라졌으면 전체로 되돌립니다
+  sel.value = 현재;
+  보기적용(현재);
+}
+
 // ---- (4) 화면 ----
 function 기사분석칸그리기(r, 쌓지않음) {
   var 상자 = document.getElementById('driverpanel');
@@ -3575,9 +3738,18 @@ function 기사분석칸그리기(r, 쌓지않음) {
   html += '<p class="note">보는 법: 선정 횟수는 사내 규정대로 <b>운행 한 건 단위</b>입니다(위반한도 초과). "붙은/벌어진 정류장"은 잰 정류장 중 해당 정류장의 비율이고, <b>동료 대비 ×배</b>는 같은 요일 구분·오전/오후 동료가 보통 보이는 비율의 몇 배인지입니다(1.0배=동료와 같음). ' +
     '분류: <b>반복 선정</b>=한 기간에 같은 종류로 ' + 분석_반복_선정 + '회 이상 선정 / <b>선정 1회</b> / <b>경계 반복</b>=선정은 아니지만 동료 대비 ' + 분석_경계_배수 + '배 이상이면서 기사들 중 상위 ' + 분석_경계_상위 + '% / ' +
     '<b>표본 부족</b>=운행 ' + 분석_최소운행 + '건 미만 또는 관찰 ' + 분석_최소날수 + '일 미만. 대차·고장·사고로 제외한 운행은 넣지 않았습니다. 앞차가 늦어서 뒤차가 붙을 수도 있으니 이 표는 순위가 아니라 <b>확인할 후보</b>입니다.</p>';
-  function 비율칸(비, 배수, 순위) {
-    return Math.round(비 * 1000) / 10 + '%' + (배수 != null ? ' <span class="note" style="margin:0">(동료 ×' + (Math.round(배수 * 10) / 10) + (순위 != null && 비 > 0 ? ', 상위 ' + Math.max(1, Math.round(순위)) + '%' : '')   /* [v20261109-17] 0%는 순위 없음 */ + ')</span>' : '');
+  function 비율칸(비, 배수, 순위, 보정) {
+    // [v20261111-06] 날짜 보정값이 눈에 띄게 다를 때만 '→ 날짜보정 ×'를 덧붙입니다(같으면 군더더기라서)
+    var 덧 = (보정 != null && 배수 != null && Math.abs(보정 - 배수) >= 0.05)
+      ? ' → 날짜보정 ×' + (Math.round(보정 * 10) / 10) : '';
+    return Math.round(비 * 1000) / 10 + '%' + (배수 != null ? ' <span class="note" style="margin:0">(동료 ×' + (Math.round(배수 * 10) / 10) + 덧 + (순위 != null && 비 > 0 ? ', 상위 ' + Math.max(1, Math.round(순위)) + '%' : '')   /* [v20261109-17] 0%는 순위 없음 */ + ')</span>' : '');
   }
+  // [v20261111-06] 날짜 보정이 무엇인지 설명합니다
+  html += '<p class="note"><b>날짜보정 ×</b>는 <b>그날 전체가 나빴던 정도를 먼저 빼고</b> 남은 그 기사 몫입니다. ' +
+    '눈 온 날·공사 날에 많이 근무한 기사가 불리해지지 않게 하려는 것입니다. ' +
+    '「동료 ×」보다 <b>작아지면</b> 그날 사정 탓이 컸다는 뜻이고, <b>그대로거나 커지면</b> 날씨·도로와 무관하게 그 기사 몫입니다. ' +
+    '같이 일한 기사가 ' + 분석_날동료_최소 + '명보다 적은 날은 보정하지 않고, 하루 때문에 결과가 뒤집히지 않게 보정 폭은 1/3배~3배로 묶습니다. ' +
+    '<b>선정 여부(규정 판정)와 분류에는 쓰지 않습니다.</b></p>';
   html += '<div class="scroll" style="max-height:55vh"><table><tr><th>기사</th><th>분류</th><th>운행 (관찰 날)</th><th>▼ 밀착 선정</th><th>붙은 정류장</th><th>■ 지연 선정</th><th>벌어진 정류장</th><th>바로 앞 기간</th><th>선정된 날</th></tr>';
   A.목록.forEach(function (b) {
     var 이름 = 기사이름(b.id) + (이름맵[b.id] ? ' (' + b.id + ')' : '');
@@ -3596,8 +3768,8 @@ function 기사분석칸그리기(r, 쌓지않음) {
     }).join(' · ');
     var a = b.앞기간, 앞칸 = a ? '밀착 ' + a.m + ' · 지연 ' + a.l + ' (운행 ' + a.n + ')' : '-';
     html += '<tr><td>' + 이름칸 + '</td><td style="' + 색 + '"><b>' + 분류글 + '</b></td><td>' + b.n + '건 (' + b.날수 + '일)</td>' +
-      '<td>' + b.m + '회 · ' + Math.round(b.m / b.n * 1000) / 10 + '%</td><td>' + 비율칸(b.붙음비율, b.밀배수, b.밀순위) + '</td>' +
-      '<td>' + b.l + '회 · ' + Math.round(b.l / b.n * 1000) / 10 + '%</td><td>' + 비율칸(b.벌어짐비율, b.지배수, b.지순위) + '</td>' +
+      '<td>' + b.m + '회 · ' + Math.round(b.m / b.n * 1000) / 10 + '%</td><td>' + 비율칸(b.붙음비율, b.밀배수, b.밀순위, b.밀보정배수) + '</td>' +
+      '<td>' + b.l + '회 · ' + Math.round(b.l / b.n * 1000) / 10 + '%</td><td>' + 비율칸(b.벌어짐비율, b.지배수, b.지순위, b.지보정배수) + '</td>' +
       '<td>' + 앞칸 + '</td><td>' + (선정날칸 || '-') + '</td></tr>';
   });
   html += '</table></div>';
@@ -3612,6 +3784,7 @@ function 기사분석칸그리기(r, 쌓지않음) {
   if (종류상자) 종류상자.addEventListener('change', function () { 히트맵종류 = this.value; 기사분석칸그리기(r, true); });
   var 인쇄단추 = $('heatprintbtn');                                  // [v20261111-03] 히트맵만 인쇄
   if (인쇄단추) 인쇄단추.addEventListener('click', function () { 히트맵인쇄(A, 노선); });
+  보기메뉴갱신();                                                   // [v20261111-08] 이 칸이 새로 생겼으니 보기 메뉴에 넣습니다
   $('driverclear').addEventListener('click', function () {
     if (!confirm('이 노선에 쌓인 기사 분석 기록을 모두 지울까요? (지운 뒤 CSV를 다시 올리면 그 CSV의 날짜부터 다시 쌓입니다)')) return;
     delete 기사일지[노선]; 기사일지저장실패 = !저장쓰기(기사일지_열쇠, 기사일지); 기사분석칸그리기(r, true);
