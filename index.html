@@ -1,10 +1,10 @@
 <!doctype html>
-<!-- ★ 프로그램 버전: v20261113-04  (파일 이름의 번호와 같습니다) -->
+<!-- ★ 프로그램 버전: v20261114-01  (파일 이름의 번호와 같습니다) -->
 <html lang="ko">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="program-version" content="v20261113-04">
+<meta name="program-version" content="v20261114-01">
 <link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PHJlY3QgeD0iMy41IiB5PSIzLjUiIHdpZHRoPSIyNSIgaGVpZ2h0PSIyMCIgcng9IjMuNSIgZmlsbD0iIzBiNmI0ZiIvPjxyZWN0IHg9IjYuNSIgeT0iNy41IiB3aWR0aD0iOCIgaGVpZ2h0PSI2LjUiIHJ4PSIxLjIiIGZpbGw9IiNmZmZmZmYiLz48cmVjdCB4PSIxNy41IiB5PSI3LjUiIHdpZHRoPSI4IiBoZWlnaHQ9IjYuNSIgcng9IjEuMiIgZmlsbD0iI2ZmZmZmZiIvPjxyZWN0IHg9IjYuNSIgeT0iMTciIHdpZHRoPSIxOSIgaGVpZ2h0PSIyLjgiIHJ4PSIxLjQiIGZpbGw9IiM4ZmQ5YmQiLz48Y2lyY2xlIGN4PSIxMCIgY3k9IjI2IiByPSIzLjIiIGZpbGw9IiMxMzMwMmEiLz48Y2lyY2xlIGN4PSIyMiIgY3k9IjI2IiByPSIzLjIiIGZpbGw9IiMxMzMwMmEiLz48L3N2Zz4=">   <!-- [v20261111-05] 탭에 뜨는 버스 아이콘. 그림 파일을 따로 두지 않고 HTML 안에 넣어, 파일 한 장만 들고 다녀도 됩니다 -->
 <title>운행기록 점검기 (사내규정판)</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap">
@@ -369,7 +369,16 @@ body.cardmeasure #printArea .sheet{border:0;border-radius:0;padding:0}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script>
 // =====================================================================
-// 운행기록 점검기 (사내규정판)   버전: v20261113-04   ← 날짜-일련번호
+// 운행기록 점검기 (사내규정판)   버전: v20261114-01   ← 날짜-일련번호
+// [v20261114-01 변경] "그래프 상에 잘 구분이 안되니, 구분이 잘 되게 해봐"라는 말씀에 또 한 번 가독성을
+//   손봤습니다(계산 방식은 전혀 손대지 않았습니다 — 표시만 바꿨습니다).
+//   ① 그래프 키를 140→190으로 늘려 선과 선 사이에 여유를 더 줬습니다.
+//   ② '기준'(전체 평균) 선을 뺐습니다 — 배경의 연두색 '정상 범위' 띠가 이미 그 자리를 보여 주고
+//     있어서, 같은 정보를 두 번 그리는 셈이라 오히려 복잡해 보였습니다.
+//   ③ 붙음·벌어짐 기준 점선 2개의 색을 검정에서 갈색(#8a6d3b)으로 바꿨습니다 — 검은 굵은 선(오늘,
+//     이 차)과 색이 같아서 점선/실선만으로 구분해야 했는데, 색까지 다르게 해서 한눈에 갈라 보이게
+//     했습니다.
+//   ④ 위 변경에 맞춰 그래프 아래 '읽는 법' 설명 글도 고쳤습니다.
 // [v20261113-04 변경·오류 바로잡음] 화면에 보이는 버전 글자(맨 위·탭 제목·맨 아래)가 실제 내용과
 //   안 맞던 것을 고쳤습니다. 원인: 버전을 올릴 때 고쳐야 할 자리가 4곳인데(맨 위 주석 · meta 태그 ·
 //   VERSION 변수 · 이 줄), v20261113-01~03에서는 VERSION 변수를 빠뜨려서 화면은 계속 v20261111-08로
@@ -503,7 +512,7 @@ body.cardmeasure #printArea .sheet{border:0;border-radius:0;padding:0}
 //  5) 예외: 내가 '밀착'인데 내 앞차가 '지연' 선정이면, 또는 내가 '지연'인데 앞차가
 //     '밀착' 선정이면 선정에서 빼줍니다(예외 인정).
 // =====================================================================
-var VERSION = 'v20261113-04';
+var VERSION = 'v20261114-01';
 
 // ---------- [기준값] 여기 숫자만 바꾸면 점검이 더 엄격/느슨해집니다 ----------
 var 지연_배수 = 1.7;          // 기준의 1.7배 초과면 '지연 정류장'
@@ -1553,7 +1562,7 @@ function 의심상자(의심) {
 }
 function 간격그림(열, 기준, D, x) {
   var 칸 = 열.칸, N = 칸.length;                                          // 정류장 수
-  var W = 680, H = 140, 좌 = 40, 우 = 8, 위 = 20, 아래 = 22;              // 그림 크기와 여백(픽셀). 위 20 = 요약 한 줄 자리
+  var W = 680, H = 190, 좌 = 40, 우 = 8, 위 = 20, 아래 = 22;              // [v20261114-01] 선이 5~7개라 겹쳐 보인다는 말씀에 세로를 140→190으로 늘려 선 사이 공간을 넓힘. 위 20 = 요약 한 줄 자리
   var 폭 = (W - 좌 - 우) / Math.max(N - 1, 1), 높 = H - 위 - 아래;
   var 꼭대기 = 기준 * 2;                                                   // 세로축 꼭대기 = 평균의 2배 (넘는 값은 꼭대기에 붙여 그림)
   function X(i) { return (좌 + i * 폭).toFixed(1); }                       // 정류장 순서 → 가로 위치
@@ -1668,16 +1677,15 @@ function 간격그림(열, 기준, D, x) {
   // [v20261113-03] 오른쪽 끝 글자들이 서로 겹쳐 안 보이는 문제를 고치려고, 선만 먼저 그리고 글자는 '라벨후보'에
   //   모아 뒀다가 밑에서 한꺼번에 위치를 정리해서 찍습니다(겹치면 아래로 살짝 밀어 줍니다).
   var 라벨후보 = [];
-  function 변하는선(배열, 글, 점선, 색, 묶음class) {
+  function 변하는선(배열, 글, 색, 굵기, 점선모양) {
     var v = 배열.filter(function (x) { return x != null; });
     if (!v.length) return '';
-    var 선색 = 색 || (점선 ? '#111' : '#888');
-    라벨후보.push({ y: +Y(v[v.length - 1]), 글: 글, 색: 선색, 묶음class: 묶음class });
-    return (묶음class ? '<g class="' + 묶음class + '">' : '') +
-      '<path d="' + 선만들기(배열) + '" fill="none" stroke="' + 선색 + '" stroke-width="' + (점선 ? 1.3 : 0.8) + '"' + (점선 ? ' stroke-dasharray="6 3"' : '') + '/>' +
-      (묶음class ? '</g>' : '');
+    라벨후보.push({ y: +Y(v[v.length - 1]), 글: 글, 색: 색 });
+    return '<path d="' + 선만들기(배열) + '" fill="none" stroke="' + 색 + '" stroke-width="' + 굵기 + '"' + (점선모양 ? ' stroke-dasharray="' + 점선모양 + '"' : '') + '/>';
   }
-  g += 변하는선(기준배열, '기준 ' + 범위글(기준배열) + '분', false) + 변하는선(밀배열, '붙음 기준 ' + 범위글(밀배열) + '분 ▼', true) + 변하는선(지배열, '벌어짐 기준 ' + 범위글(지배열) + '분 ■', true);
+  // [v20261114-01] 선이 너무 많다는 말씀에, 정상 범위 띠 한가운데 값일 뿐인 '기준' 선은 뺐습니다(연두색 띠로
+  //   이미 보임). 붙음·벌어짐 기준선도 검정에서 갈색으로 바꿔, '오늘(검은 굵은 선)'과 더 뚜렷이 구분되게 했습니다.
+  g += 변하는선(밀배열, '붙음 기준 ' + 범위글(밀배열) + '분 ▼', '#8a6d3b', 1.3, '6 3') + 변하는선(지배열, '벌어짐 기준 ' + 범위글(지배열) + '분 ■', '#8a6d3b', 1.3, '6 3');
   // 회색 점선 = 앞차와 그 앞차 간격, 검은 선 = 내 차와 앞차 간격
   g += '<path d="' + 선만들기(앞간격) + '" fill="none" stroke="#8c8c8c" stroke-width="1.3" stroke-dasharray="3 2"/>';
   // [v20261113-03] 초록 계열은 '정상 범위' 연두색 띠와 섞여 헷갈린다는 말씀에 보라 계열로 바꿨습니다.
@@ -1754,7 +1762,7 @@ function 간격그림(열, 기준, D, x) {
   if (x) 요약 += '  (선정 한도 ' + 소수1(선정비율(x._차량수) * x._정류장수) + '곳 — 넘으면 선정)';
   g += '<text x="' + 좌 + '" y="13" font-size="13" font-weight="700" fill="#111">' + 요약 + '</text>';
   return '<svg class="gapgraph" viewBox="0 0 ' + W + ' ' + H + '" width="100%" role="img" aria-label="정류장별 앞차와 간격 그래프: ' + 요약 + '" style="display:block;max-width:100%">' + g + '</svg>' +
-    '<p class="legend"><b>읽는 법:</b> 검은 선 = 이 차와 앞차의 간격. <b style="color:#c0392b">▼</b>가 아래 점선 밑으로 내려간 곳이 붙음(밀착), <b style="color:#b06e00">■</b>가 위 점선 위로 올라간 곳이 벌어짐(지연)입니다. ' +
+    '<p class="legend"><b>읽는 법:</b> 검은 선(굵게) = 이 차와 앞차의 간격. <b style="color:#8a6d3b">갈색 점선</b> 두 줄이 붙음·벌어짐 기준선이고, 그 사이 연두색 띠가 정상 범위입니다 — <b style="color:#c0392b">▼</b>가 아래쪽 갈색 점선 밑으로 내려간 곳이 붙음(밀착), <b style="color:#b06e00">■</b>가 위쪽 갈색 점선 위로 올라간 곳이 벌어짐(지연)입니다. ' +
     '회색 점선 = 앞차와 그 앞차의 간격 — 회색 점선이 높이 솟은 곳은 앞차가 늦어져 있던 곳입니다. ' +
     '<b style="color:#8e24aa">보라 점선(진함)</b> = 뒤차와 이 차의 간격, <b style="color:#ce93d8">보라 점선(연함)</b> = 뒤뒤차와 뒤차의 간격입니다 — 이 차 앞뒤로 2대씩, 총 5대가 어떻게 다녔는지 함께 보려는 것으로, 뒤차들도 같이 벌어지거나 붙었다면 이 차 한 대만의 문제가 아닐 수 있습니다. 참고용이며 선정 계산에는 쓰지 않습니다. 선이 많아 헷갈리면 위쪽 「보기」 줄의 「기간 평균 선」·「뒤차·뒤뒤차 선」 체크를 꺼서 줄여 보세요.' +
     // [v20261113-01] 기간 평균 점선 안내(그려졌을 때)와, 안 그려졌을 때의 이유를 글로 알려 줍니다.
